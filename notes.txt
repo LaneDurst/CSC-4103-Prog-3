@@ -16,3 +16,4 @@ Important
         [] need to be null terminated and made of printable ascii
     - DOES NOT need to be thread-safe
     - pay attention to error conditions in FSError
+    - MUST also include a design document for the filesystem's physical layout, called 'filesystem_design.pdf'
