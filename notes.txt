@@ -17,3 +17,8 @@ Important
     - DOES NOT need to be thread-safe
     - pay attention to error conditions in FSError
     - MUST also include a design document for the filesystem's physical layout, called 'filesystem_design.pdf'
+
+
+Questions for the Professor
+    - What would be a good place to start?
+    - Does the 256 character limit for the filesystem names include the null character?
