@@ -1,0 +1,18 @@
+This is a Text File used to store notes about the project and its implementation
+This file has no affect on the actual code
+=================================================================================
+
+Important
+    - No standard filesystem operations [fopen(), fclose(), etc.]
+    - We need to make a initialization program callled 'formatfs.c' which initializes the system
+        [] will use init_software_disk() at some point
+    - We are editing ONLY filesystem.c and formatfs.c
+    - Need to use a bitmap for tracking stuff
+    - only 1 root directory and no subdirectories
+    - Need to use an inode block allocation strategy
+        [] will use 13 16-bit DIRECT block numbers and a single INDIRECT block number in each inode
+    - should handle out of space errors
+    - filenames need to be allowed up to 256 char
+        [] need to be null terminated and made of printable ascii
+    - DOES NOT need to be thread-safe
+    - pay attention to error conditions in FSError
