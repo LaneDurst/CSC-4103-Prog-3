@@ -2,7 +2,7 @@ This is a Text File used to store notes about the project and its implementation
 This file has no affect on the actual code
 =================================================================================
 
-Important
+From Assignment PDF
     - No standard filesystem operations [fopen(), fclose(), etc.]
     - We need to make a initialization program callled 'formatfs.c' which initializes the system
         [] will use init_software_disk() at some point
@@ -18,7 +18,29 @@ Important
     - pay attention to error conditions in FSError
     - MUST also include a design document for the filesystem's physical layout, called 'filesystem_design.pdf'
 
+Other Notes
+    - 
 
 Questions for the Professor
     - What would be a good place to start?
-    - Does the 256 character limit for the filesystem names include the null character?
+        [] block size should be 1,024
+        [] bitmaps for free inodes and free blocks (use 1 block just for this)
+        [] a few blocks of inodes
+        [] make the number of inodes exactly divisible by the number of blocks
+        [] a few blocks for directory entries
+            - contains (for each file in the directory) the name of the file, its inode #, and its size
+        [] functions that can find the first 0 bit (which bit is free)
+        [] read / write Inode
+
+    - Does the 256 character limit (this is the minimum, can be made bigger if needed) for the filesystem names include the null character?
+        [] yes
+
+code snips from class
+=====================
+
+typedef struct Inode {
+    uint32_t size; // file size in bytes
+    uint32_t b[13+1]; // direct block + 1
+                            //indirect block
+    char nothing[4];
+} Inode;
