@@ -1,4 +1,4 @@
-// THIS AND FORMATFS.C ARE THE ONLY FILES WE ARE EDITING [Lane] //
+// THIS AND FORMATFS.C ARE THE ONLY FILES WE ARE EDITING //
 // These are all the operations we will be doing on the initalized software disk from formatfs.c //
 
 #include <stdio.h>
@@ -12,14 +12,17 @@
 
 #include "filesystem.h"
 
-FSError most_recent_error = FS_NONE;
+fserror = FS_NONE; // this is an external var pulled from filesystem.h
 
-/* Helper Functions */
 
-// actually probably the most important function
+//////////////////////
+// Helper Functions //
+//////////////////////
+
+// actually probably the most important function lol
 void fs_print_error(void)
 {
-    switch(most_recent_error)
+    switch(fserror)
     {
         case FS_NONE:
         {
@@ -72,24 +75,29 @@ void fs_print_error(void)
             break;
         }
     }
+    fserror = FS_NONE;
 }
 
+// TODO: Implement
 bool seek_file(File file, uint64_t bytepos)
 {
 
 }
 
+// TODO: Implement
 uint64_t file_length(File file)
 {
     // use the inodes(?) to find the file start and end
     // do basic subtraction
 }
 
+// TODO: Implement
 bool file_exists(char *name)
 {
 
 }
 
+// TODO: Implement
 bool delete_file(char *name)
 {
     if(file_exists(name))
@@ -100,35 +108,51 @@ bool delete_file(char *name)
     return false;
 }
 
+// TODO: Implement
 bool check_structure_alignment(void)
 {
     
 }
 
-/*Open|Create & Deletion*/
 
-File open_file(char *name, FileMode mode) // the 'mode' referred to here is read/write/execute
+//////////////////////////////
+// Main Operating Functions //
+//////////////////////////////
+
+// TODO: Implement
+// the 'mode' referred to here is read/write/execute
+File open_file(char *name, FileMode mode)
 {
-    if (!file_exists(name))
+    if (!file_exists(name)) // do this now so we don't accidentally try to open a nonexistant file
     {
+        fserror = FS_FILE_NOT_FOUND;
         fs_print_error();
-        return NULL; // do this now so we don't accidentally open a nonexistant file
+        return NULL;
     }
     // open the file
     // treat current fileposition as byte 0
 }
 
+// TODO: Implement
 // this should only be called if a file we are trying to write to does not already exist
 File create_file(char *name)
 {
+    if (file_exists(name)) // can't make two files with the same name
+    {
+        fserror = FS_FILE_ALREADY_EXISTS;
+        fs_print_error();
+        return NULL;
+    }
     // TODO: implement creating the file
 }
 
-File close_file(File file) // supposed to 'set fserror global', whatever that means
+// TODO: Implement
+void close_file(File file)
 {
-    if(!file_exists(file)) //TODO: figure out how to get the name of f, since file_exists needs the name, not the pointer
+    if(!file_exists(file)) //TODO: figure out how to get the name, since file_exists needs the name, not the pointer
     {
-        // send an error
+        fserror = FS_FILE_NOT_FOUND;
+        fs_print_error();
     }
     else
     {
@@ -137,27 +161,34 @@ File close_file(File file) // supposed to 'set fserror global', whatever that me
 
 }
 
-/* Read & Write */
-
+// TODO: Implement
 // the uint64_t return value is how many bytes are written
-// not important really, unless the read fails partway through
+// not important really, unless the read stops partway through
 uint64_t read_file(File file, void *buf, uint64_t numbytes)
 {
+    uint64_t redbytes = 0;
     if(!file_exists(file)) //TODO: figure out how to get the name of f, since file_exists needs the name, not the pointer
     {
-        // send an error saying you can't find the file
-        return NULL;
+        fserror = FS_FILE_NOT_FOUND;
+        fs_print_error();
+        return redbytes; // this is essentially just return 0, but its consistent, so leave it
     }
-    // grab the file
-    uint64_t readbytes = 0;
-    while (readbytes < numbytes) //probably a better way to do this
+
+    // TODO: actually grab the file
+
+    uint64_t fSize = file_length(file);
+    while (redbytes < numbytes) //probably a better way to do this
     {
-        // read a byte at position readbytes in the file
+        if (redbytes > fSize) break; // this stops us from reading past the end of a file
+        // TODO: else read a byte at position readbytes into 'buf'
+        redbytes++;
     }
-    return readbytes;
+
+    return redbytes;
 
 }
 
+// TODO: Implement
 // return type is uint64_t for the same reason as above
 uint64_t write_file(File file, void *buf, uint64_t numbytes)
 {
@@ -167,4 +198,5 @@ uint64_t write_file(File file, void *buf, uint64_t numbytes)
     }
     // open the file
     // write to the file
+    // note: while you are writing check to make sure the current write would not cause the file to exceed max size
 }
