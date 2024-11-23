@@ -26,7 +26,6 @@ void fs_print_error(void)
     {
         case FS_NONE:
         {
-            fprintf(stderr, "ERROR: an error was thrown, but error type was not set\n");
             break;
         }
         case FS_OUT_OF_SPACE:
@@ -75,18 +74,18 @@ void fs_print_error(void)
             break;
         }
     }
-    fserror = FS_NONE;
 }
 
 // TODO: Implement
 bool seek_file(File file, uint64_t bytepos)
 {
-
+    fserror = FS_NONE;
 }
 
 // TODO: Implement
 uint64_t file_length(File file)
 {
+    fserror = FS_NONE;
     // use the inodes(?) to find the file start and end
     // do basic subtraction
 }
@@ -94,12 +93,13 @@ uint64_t file_length(File file)
 // TODO: Implement
 bool file_exists(char *name)
 {
-
+    fserror = FS_NONE;
 }
 
 // TODO: Implement
 bool delete_file(char *name)
 {
+    fserror = FS_NONE;
     if(file_exists(name))
     {
         // delete the file
@@ -123,10 +123,10 @@ bool check_structure_alignment(void)
 // the 'mode' referred to here is read/write/execute
 File open_file(char *name, FileMode mode)
 {
+    fserror = FS_NONE;
     if (!file_exists(name)) // do this now so we don't accidentally try to open a nonexistant file
     {
         fserror = FS_FILE_NOT_FOUND;
-        fs_print_error();
         return NULL;
     }
     // open the file
@@ -137,10 +137,10 @@ File open_file(char *name, FileMode mode)
 // this should only be called if a file we are trying to write to does not already exist
 File create_file(char *name)
 {
+    fserror = FS_NONE;
     if (file_exists(name)) // can't make two files with the same name
     {
         fserror = FS_FILE_ALREADY_EXISTS;
-        fs_print_error();
         return NULL;
     }
     // TODO: implement creating the file
@@ -149,10 +149,10 @@ File create_file(char *name)
 // TODO: Implement
 void close_file(File file)
 {
+    fserror = FS_NONE;
     if(!file_exists(file)) //TODO: figure out how to get the name, since file_exists needs the name, not the pointer
     {
         fserror = FS_FILE_NOT_FOUND;
-        fs_print_error();
     }
     else
     {
@@ -166,11 +166,11 @@ void close_file(File file)
 // not important really, unless the read stops partway through
 uint64_t read_file(File file, void *buf, uint64_t numbytes)
 {
+    fserror = FS_NONE;
     uint64_t redbytes = 0;
     if(!file_exists(file)) //TODO: figure out how to get the name of f, since file_exists needs the name, not the pointer
     {
         fserror = FS_FILE_NOT_FOUND;
-        fs_print_error();
         return redbytes; // this is essentially just return 0, but its consistent, so leave it
     }
 
@@ -192,6 +192,7 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes)
 // return type is uint64_t for the same reason as above
 uint64_t write_file(File file, void *buf, uint64_t numbytes)
 {
+    fserror = FS_NONE;
     if(!file_exists(file)) //TODO: figure out how to get the name of f, since file_exists needs the name, not the pointer
     {
         // create the file
