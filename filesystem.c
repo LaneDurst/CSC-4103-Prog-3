@@ -11,8 +11,30 @@
 #include <pthread.h>
 
 #include "filesystem.h"
+#include "softwaredisk.h"
 
+// Globals & Defines //
+
+#define MAX_FILES           300
+#define DATA_BITMAP_BLOCK   0
+#define INODE_BITMAP_BLOCk  1
+#define FIRST_INODE_BLOCK   2
+#define NUM_DIRECT_INODE_BLOCKS 13 //arbitrarily picked, might need to change
 fserror = FS_NONE; // this is an external var pulled from filesystem.h
+
+
+// structures //
+
+typedef struct Inode{
+    uint32_t size;
+    uint16_t b[NUM_DIRECT_INODE_BLOCKS+1];
+} Inode;
+
+// type for blocks of Inodes. Structure must be
+// SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
+typedef struct InodeBlock{
+    Inode inodes[SOFTWARE_DISK_BLOCK_SIZE/sizeof(Inode)];
+}InodeBlock;
 
 
 //////////////////////
