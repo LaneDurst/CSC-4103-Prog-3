@@ -176,7 +176,6 @@ File open_file(char *name, FileMode mode)
 }
 
 // TODO: Implement
-// this should only be called if a file we are trying to write to does not already exist
 File create_file(char *name)
 {
     fserror = FS_NONE;
