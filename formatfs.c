@@ -1,39 +1,25 @@
-// THIS and FILESYSTEM.C ARE THE ONLY FILES WE ARE EDITING [Lane] //
-// The purpose of this file is to mess with system initialization //
+// THIS and FILESYSTEM.C ARE THE ONLY FILES WE ARE EDITING
+
+//
+// Filesystem initialized for LSU 4103 filesystem assignment
+//
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <limits.h>
-#include <pthread.h>
+#include "filesystem.h"
 #include "softwaredisk.h"
 
-//might remove this include
-#include "filesystem.h"
+int main(int argc, char* argv[]){
+    printf("Checking data structure sizes and alignments ... \n");
+    if (! check_structure_alignment()){
+        printf("Check failed. Filesystem not initialized and should not be used.\n");
+    }
+    else{
+        printf("Check succeeded.\n");
 
-// inode code (unsure if this goes here)
-typedef struct Inode{
-    uint32_t size; // file size in bytes
-    uint32_t b[13+1]; // 13 direct blocks + 1 indirect block
-    char nothing[4]; // just to make this more easily divisible
-} Inode;
-
-
-// these bitmap methods were all provided by golden
-void set_bit(unsigned char* bitmap, uint64_t j)
-{
-    bitmap[j/8] != (1 << (j%8));
-}
-
-void clear_bit(unsigned char* bitmap, uint64_t j)
-{
-    bitmap[j/8] &= ~(1 << (j%8));
-}
-
-bool is_bit_set(unsigned char *bitmap, uint64_t j)
-{
-    return bitmap[j/8] & (1 << (j%8));
+        printf("Initializing filesystem...\n");
+        // my FS only simply requires a completely zeroed software disk
+        init_software_disk();
+        printf("Done.\n");
+    }
+    return 0;
 }
