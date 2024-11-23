@@ -21,8 +21,9 @@
 #define DATA_BITMAP_BLOCK   0
 #define INODE_BITMAP_BLOCk  1
 #define FIRST_INODE_BLOCK   2
-#define NUM_DIRECT_INODE_BLOCKS 13 //arbitrarily picked, might need to change
-fserror = FS_NONE; // this is an external var pulled from filesystem.h
+#define NUM_DIRECT_INODE_BLOCKS 13
+fserror = FS_NONE;  // this is an external var, defined in filesystem.h
+                // I set it manually to FS_NONE here just to make sure nothing strange happens on a new startup
 
 
 // structures //
@@ -153,9 +154,16 @@ bool delete_file(char *name)
 }
 
 // TODO: Implement
+// checks that the sizes of Blocks, Inodes, etc.
+// are correct on the current platform
 bool check_structure_alignment(void)
 {
-    
+    if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
+    if (sizeof(Inode) != 32) return false;
+    if (sizeof(InodeBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
+
+
+    return true;
 }
 
 // returns true if the given name is of valid format,
@@ -174,7 +182,6 @@ bool valid_name(char *name)
 
     return true;
 }
-
 
 
 //////////////////////////////
