@@ -9,12 +9,14 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <pthread.h>
+#include <ctype.h>
 
 #include "filesystem.h"
 #include "softwaredisk.h"
 
 // Globals & Defines //
 
+#define MAX_NAME_SIZE       256
 #define MAX_FILES           300
 #define DATA_BITMAP_BLOCK   0
 #define INODE_BITMAP_BLOCk  1
@@ -27,8 +29,8 @@ fserror = FS_NONE; // this is an external var pulled from filesystem.h
 
 // Type for one inode. structure must be 32 bytes long.
 typedef struct Inode{
-    uint32_t size;
-    uint16_t b[NUM_DIRECT_INODE_BLOCKS+1];
+    uint32_t size; // 4 bytes
+    uint16_t b[NUM_DIRECT_INODE_BLOCKS+1]; // 14 (13+1) uint16_t items is 28 bytes , 4 + 28 = 32
 } Inode;
 
 // type for blocks of Inodes. Structure must be
@@ -156,6 +158,24 @@ bool check_structure_alignment(void)
     
 }
 
+// returns true if the given name is of valid format,
+// returns false otherwise
+bool valid_name(char *name)
+{
+    int nameLen = strlen(name);
+
+    if (nameLen > MAX_NAME_SIZE) return false; // over the size limit
+
+    if (name[nameLen] != '\0') return false; // not properly null terminated
+    for(int i = 0; i < nameLen; i++)
+    {
+        if (!isprint(name[i])) return false; // contains a non-printable char
+    }
+
+    return true;
+}
+
+
 
 //////////////////////////////
 // Main Operating Functions //
@@ -182,6 +202,11 @@ File create_file(char *name)
     if (file_exists(name)) // can't make two files with the same name
     {
         fserror = FS_FILE_ALREADY_EXISTS;
+        return NULL;
+    }
+    if(!valid_name(name))
+    {
+        fserror = FS_ILLEGAL_FILENAME;
         return NULL;
     }
     // TODO: implement creating the file
