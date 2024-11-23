@@ -14,6 +14,14 @@
 //might remove this include
 #include "filesystem.h"
 
+// inode code (unsure if this goes here)
+typedef struct Inode{
+    uint32_t size; // file size in bytes
+    uint32_t b[13+1]; // 13 direct blocks + 1 indirect block
+    char nothing[4]; // just to make this more easily divisible
+} Inode;
+
+
 // these bitmap methods were all provided by golden
 void set_bit(unsigned char* bitmap, uint64_t j)
 {
