@@ -93,7 +93,10 @@ uint64_t file_length(File file)
 // TODO: Implement
 bool file_exists(char *name)
 {
+    bool exists = false; // assume we are going to return false
     fserror = FS_NONE;
+
+    // check the directory blocks ?
 }
 
 // TODO: Implement
@@ -120,7 +123,7 @@ bool check_structure_alignment(void)
 //////////////////////////////
 
 // TODO: Implement
-// the 'mode' referred to here is read/write/execute
+// the 'mode' referred to here is read/write [execute isn't tested here]
 File open_file(char *name, FileMode mode)
 {
     fserror = FS_NONE;
