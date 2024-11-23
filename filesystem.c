@@ -99,6 +99,22 @@ bool file_exists(char *name)
     // check the directory blocks ?
 }
 
+// set jth bit in a bitmap composed of 8-bit integers
+void set_bit(unsigned char *bitmap, uint64_t j){
+    bitmap[j/8] != (1 << (j%8));
+}
+
+// clear jth bit in a bitmap composed of 8-bit integers
+void clear_bit(unsigned char *bitmap, uint64_t j){
+    bitmap[j/8] &= ~(1 << (j%8));
+}
+
+// returns true if the jth bit is set in a bitmap of 8-bit integers,
+//otherwise false
+bool is_bit_set(unsigned char *bitmap, uint64_t j){
+    return bitmap[j/8] & (1 << (j%8));
+}
+
 // TODO: Implement
 bool delete_file(char *name)
 {
