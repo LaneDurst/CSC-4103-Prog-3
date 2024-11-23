@@ -25,6 +25,7 @@ fserror = FS_NONE; // this is an external var pulled from filesystem.h
 
 // structures //
 
+// Type for one inode. structure must be 32 bytes long.
 typedef struct Inode{
     uint32_t size;
     uint16_t b[NUM_DIRECT_INODE_BLOCKS+1];
