@@ -18,35 +18,41 @@
 
 #define MAX_NAME_SIZE               256
 #define MAX_FILES                   300
+#define MAX_FILE_SIZE               144384
 #define DATA_BITMAP_BLOCK           0
 #define INODE_BITMAP_BLOCK          1
 #define FIRST_INODE_BLOCK           2
 #define NUM_DIRECT_INODE_BLOCKS     13
-#define NUM_SINGLE_INDIRECT_BLOCKS  1   // unknown for now
+#define NUM_SINGLE_INDIRECT_BLOCKS  1
 
 FSError fserror = FS_NONE;  // This is an external var, defined in filesystem.h
 // I set it manually to FS_NONE here just to make sure nothing strange happens on a new startup
+
+uint8_t *data_bitmap[SOFTWARE_DISK_BLOCK_SIZE/sizeof(uint8_t)]; // these should both have 128 elements, in theory, and be a full block in size
+uint8_t *inode_bitmap[SOFTWARE_DISK_BLOCK_SIZE/sizeof(uint8_t)];
 
 // Structures //
 
 // TODO: Implement!
 // type for the internals of the file.
 typedef struct FileInternals {
-    // add here
-    
+    char* filename;
+    FileMode mode;
+    uint64_t size;
+    bool isOpen;
 } FileInternals;
 
 // Type for one inode. Structure must be 32 bytes long.
 typedef struct Inode {
     uint32_t size; // file size in bytes [uint32_t = 4 bytes]
-    uint16_t b[NUM_DIRECT_INODE_BLOCKS + 1]; // direct blocks + 1 indirect block
+    uint16_t b[NUM_DIRECT_INODE_BLOCKS + NUM_SINGLE_INDIRECT_BLOCKS]; // 13 direct blocks + 1 indirect block
     // 14 (13 + 1) uint16_t items is 28 bytes, 4 + 28 = 32
 } Inode;
 
 // type for blocks of Inodes. Structure must be
 // SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
 typedef struct InodeBlock {
-    Inode inodes[SOFTWARE_DISK_BLOCK_SIZE / sizeof(Inode)];
+    Inode inodes[SOFTWARE_DISK_BLOCK_SIZE / sizeof(Inode)]; // this ideally is an array of 32 inodes so as to cleanly fit into a 1024 byte sized block
 } InodeBlock;
 
 // type for one indirect block. Strucutre must be
@@ -159,6 +165,8 @@ bool check_structure_alignment(void) {
     if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
     if (sizeof(Inode) != 32) return false;
     if (sizeof(InodeBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
+    if (sizeof(data_bitmap) != SOFTWARE_DISK_BLOCK_SIZE) return false;
+    if (sizeof(inode_bitmap) != SOFTWARE_DISK_BLOCK_SIZE) return false;
     // add more...?
 
     return true;
@@ -206,7 +214,18 @@ File create_file(char *name) {
         fserror = FS_ILLEGAL_FILENAME;
         return NULL;
     }
-    // TODO: implement creating the file
+    
+    // creating the file [incomplete]
+    File f;
+    strcpy(f->filename, name);
+    f->isOpen = false;
+
+    // opening the file
+    FileMode tmp = READ_ONLY;
+    open_file(name, tmp);
+
+    return f;
+    
 }
 
 // TODO: Implement
@@ -247,10 +266,20 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes) {
 // return type is uint64_t for the same reason as above
 uint64_t write_file(File file, void *buf, uint64_t numbytes) {
     fserror = FS_NONE;
-    if(!file_exists(file)) { // TODO: figure out how to get the name of f, since file_exists needs the name, not the pointer
-        // create the file
+    if(file->isOpen == false) {
+        fserror = FS_FILE_NOT_OPEN; 
+        return NULL;
     }
-    // open the file
+    if (file->mode != READ_WRITE) {
+        fserror = FS_FILE_READ_ONLY;
+        return NULL;
+    }
+    if ((file->size + numbytes) > MAX_FILE_SIZE) { // this will need to be changed, it should write as much as it can, until this happens
+        fserror = FS_EXCEEDS_MAX_FILE_SIZE;
+        return NULL;
+    }
+
+    // instead of a for loop, should probably do a memcpy operation into the file location from buf for as many bytes as possible
     // write to the file
     // NOTE: while you are writing, check to make sure the current write would not cause the file to exceed max size
 }
