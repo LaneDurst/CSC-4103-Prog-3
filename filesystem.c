@@ -28,8 +28,8 @@
 FSError fserror = FS_NONE;  // This is an external var, defined in filesystem.h
 // I set it manually to FS_NONE here just to make sure nothing strange happens on a new startup
 
-uint8_t *data_bitmap[SOFTWARE_DISK_BLOCK_SIZE/sizeof(uint8_t)]; // these should both have 128 elements, in theory, and be a full block in size
-uint8_t *inode_bitmap[SOFTWARE_DISK_BLOCK_SIZE/sizeof(uint8_t)];
+uint8_t data_bitmap[SOFTWARE_DISK_BLOCK_SIZE/sizeof(uint8_t)]; // these should both have 128 elements, in theory, and be a full block in size
+uint8_t inode_bitmap[SOFTWARE_DISK_BLOCK_SIZE/sizeof(uint8_t)];
 
 // Structures //
 
@@ -162,6 +162,14 @@ bool delete_file(char *name) {
 // checks that the sizes of Blocks, Inodes, etc.
 // are correct on the current platform
 bool check_structure_alignment(void) {
+    printf("================Structure=Alignment====================\n");
+    printf("Disk Block Size is [%d] bytes, should be [1024] bytes.\n", SOFTWARE_DISK_BLOCK_SIZE);
+    printf("Inode Size is [%ld] bytes, should be [32] bytes.\n", sizeof(Inode));
+    printf("Inode Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(InodeBlock));
+    printf("Data Bitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(data_bitmap));
+    printf("Inode Bitmap is [%ld] bytes, should be [1024] bytes.\n", sizeof(inode_bitmap));
+    printf("=======================================================\n");
+
     if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
     if (sizeof(Inode) != 32) return false;
     if (sizeof(InodeBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
@@ -231,8 +239,8 @@ File create_file(char *name) {
 // TODO: Implement
 void close_file(File file) {
     fserror = FS_NONE;
-    if(!file_exists(file)) { // TODO: figure out how to get the name, since file_exists needs the name, not the pointer
-        fserror = FS_FILE_NOT_FOUND;
+    if(!(file->isOpen)) { // TODO: figure out how to get the name, since file_exists needs the name, not the pointer
+        fserror = FS_FILE_NOT_OPEN;
     }
     else {
         // close the file
@@ -245,9 +253,10 @@ void close_file(File file) {
 uint64_t read_file(File file, void *buf, uint64_t numbytes) {
     fserror = FS_NONE;
     uint64_t readbytes = 0;
-    if(!file_exists(file)) { // TODO: figure out how to get the name of f, since file_exists needs the name, not the pointer
-        fserror = FS_FILE_NOT_FOUND;
-        return readbytes; // this is essentially just return 0, but its consistent, so leave it
+    if (!(file->isOpen))
+    {
+        fserror = FS_FILE_NOT_OPEN;
+        return numbytes;
     }
 
     // TODO: actually grab the file
@@ -266,17 +275,18 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes) {
 // return type is uint64_t for the same reason as above
 uint64_t write_file(File file, void *buf, uint64_t numbytes) {
     fserror = FS_NONE;
+    uint64_t readbytes = 0;
     if(file->isOpen == false) {
         fserror = FS_FILE_NOT_OPEN; 
-        return NULL;
+        return readbytes;
     }
     if (file->mode != READ_WRITE) {
         fserror = FS_FILE_READ_ONLY;
-        return NULL;
+        return readbytes;
     }
     if ((file->size + numbytes) > MAX_FILE_SIZE) { // this will need to be changed, it should write as much as it can, until this happens
         fserror = FS_EXCEEDS_MAX_FILE_SIZE;
-        return NULL;
+        return readbytes;
     }
 
     // instead of a for loop, should probably do a memcpy operation into the file location from buf for as many bytes as possible
