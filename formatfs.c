@@ -5,8 +5,21 @@
 //
 
 #include <stdio.h>
-#include "filesystem.h"
+#include "filesystem.c"
 #include "softwaredisk.h"
+
+void setup_disk(void)
+{
+    // initializing data_bitmap
+    bitmap data_bitmap;
+    bzero(data_bitmap.bytes);
+    write_sd_block(data_bitmap.bytes, DATA_BITMAP_BLOCK);
+
+    // initializing inode_bitmap
+    bitmap inode_bitmap;
+    bzero(inode_bitmap.bytes);
+    write_sd_block(inode_bitmap.bytes, INODE_BITMAP_BLOCK);
+}
 
 int main(int argc, char* argv[]) {
     printf("Checking data structure sizes and alignments ... \n");
@@ -19,6 +32,7 @@ int main(int argc, char* argv[]) {
         printf("Initializing filesystem...\n");
         // my FS only simply requires a completely zeroed software disk
         init_software_disk();
+        setup_disk();
         printf("Done.\n");
     }
     return 0;
