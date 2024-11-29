@@ -35,6 +35,15 @@ FSError fserror = FS_NONE; // initially set to FS_NONE to prevent issues on star
 // Structures //
 ////////////////
 
+typedef struct directory_entry{
+    char *file_name;
+    Inode *inodeNum;
+}directory_entry;
+
+typedef struct directoryBlock{
+    directory_entry blk[SOFTWARE_DISK_BLOCK_SIZE/sizeof(directory_entry)];
+}directoryBlock;
+
 typedef struct FileInternals {
     char* filename;
     FileMode mode;
@@ -68,10 +77,10 @@ typedef struct IndirectBlock {
 
 // Type for one bitmap. Structure must be
 // SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
-typedef struct FreeBitmap {
+typedef struct bitmap {
     uint8_t bytes[SOFTWARE_DISK_BLOCK_SIZE / sizeof(uint8_t)]; 
     // A bitmap should have 128 elements, in theory, and be a full block in size.
-} FreeBitmap;
+} bitmap;
 
 /////////////////////////////
 // Custom Helper Functions //
@@ -109,8 +118,7 @@ bool valid_name(char *name) {
 // mark block 'blk' allocated (1) or free (0) depending on 'flag'.
 // Returns false on error and true on success.
 static bool mark_block(uint16_t blk, bool flag) {
-
-    FreeBitmap f;
+    bitmap f;
 
     blk -= FIRST_DATA_BLOCK;
     if(! read_sd_block(&f, DATA_BITMAP_BLOCK)) {
@@ -135,8 +143,28 @@ static bool mark_block(uint16_t blk, bool flag) {
 
 // mark inode 'i' allocated (1) or free (0) depending on 'flag'.
 // Returns false on error and true on success. Sets fserror on I/O error.
-static bool mark_inode(Inode i, bool flag) {
-    // TODO: Implement!
+static bool mark_inode(uint16_t inode, bool flag) {
+    bitmap f;
+
+    inode -= FIRST_INODE_BLOCK;
+    if(! read_sd_block(&f.bytes, INODE_BITMAP_BLOCK)) {
+        return false;
+    }
+    else {
+        if (flag) {
+            // set bit
+            f.bytes[inode / 8] != (1 << (7 - (inode % 8)));
+        }
+        else {
+            // clear bit
+            f.bytes[inode / 8] &= ~(1 << (7 - (inode % 8)));
+        }
+        if (! write_sd_block(&f, INODE_BITMAP_BLOCK)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 
@@ -235,13 +263,13 @@ bool check_structure_alignment(void) {
     printf("Disk Block Size is [%d] bytes, should be [1024] bytes.\n", SOFTWARE_DISK_BLOCK_SIZE);
     printf("Inode Size is [%ld] bytes, should be [32] bytes.\n", sizeof(Inode));
     printf("Inode Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(InodeBlock));
-    printf("Bitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(FreeBitmap));
+    printf("Bitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(bitmap));
     printf("=======================================================\n");
 
     if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
     if (sizeof(Inode) != 32) return false;
     if (sizeof(InodeBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
-    if (sizeof(FreeBitmap) != SOFTWARE_DISK_BLOCK_SIZE) return false;
+    if (sizeof(bitmap) != SOFTWARE_DISK_BLOCK_SIZE) return false;
     // add more if necessary
 
     return true;
@@ -284,7 +312,7 @@ File create_file(char *name) {
     f->isOpen = false;
 
     // opening the file
-    f = open_file(name, READ_ONLY);
+    f = open_file(name, READ_WRITE);
 
     return f;
 }
