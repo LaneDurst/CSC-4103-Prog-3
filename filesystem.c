@@ -18,7 +18,7 @@
 // Globals & Defines //
 ///////////////////////
 
-#define MAX_NAME_SIZE               256
+#define MAX_NAME_SIZE               256 // in characters, 
 #define MAX_FILES                   300
 #define MAX_FILE_SIZE               144384
 #define DATA_BITMAP_BLOCK           0
@@ -35,22 +35,26 @@ FSError fserror = FS_NONE; // initially set to FS_NONE to prevent issues on star
 // Structures //
 ////////////////
 
+typedef struct FileInternals {
+    char *name;      
+    uint32_t size;  
+    bool isOpen; 
+    FileMode mode;    
+    uint32_t pos;   
+    // add more if necessary
+} FileInternals;
+
+// 512 bytes
 typedef struct directory_entry{
-    char *file_name;
-    Inode *inodeNum;
+    File f; // file's metadata
+    uint16_t inodeNum; // inode num associated with the file [2 bytes]
+    uint8_t empty[512-sizeof(File)-2];
 }directory_entry;
 
+// should be 2 per block
 typedef struct directoryBlock{
     directory_entry blk[SOFTWARE_DISK_BLOCK_SIZE/sizeof(directory_entry)];
 }directoryBlock;
-
-typedef struct FileInternals {
-    char* filename;
-    FileMode mode;
-    uint64_t size;
-    bool isOpen;
-    // add more if necessary
-} FileInternals;
 
 // Type for one inode. Structure must be 32 bytes long.
 typedef struct Inode {
@@ -79,7 +83,7 @@ typedef struct IndirectBlock {
 // SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
 typedef struct bitmap {
     uint8_t bytes[SOFTWARE_DISK_BLOCK_SIZE / sizeof(uint8_t)]; 
-    // A bitmap should have 128 elements, in theory, and be a full block in size.
+    // A bitmap should have 8192 bits, in theory, and be a full block in size.
 } bitmap;
 
 /////////////////////////////
@@ -167,6 +171,17 @@ static bool mark_inode(uint16_t inode, bool flag) {
     return true;
 }
 
+// TODO: Implement!
+uint16_t get_first_free_inode(void){
+    // get the first free inode
+    // set the bit as taken
+    // return the inode number
+}
+
+// TODO: Implement!
+uint16_t get_first_directory_spot(void){
+    // get the first free directory spot
+}
 
 /////////////////////////////
 // Header Helper Functions //
@@ -264,12 +279,16 @@ bool check_structure_alignment(void) {
     printf("Inode Size is [%ld] bytes, should be [32] bytes.\n", sizeof(Inode));
     printf("Inode Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(InodeBlock));
     printf("Bitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(bitmap));
+    printf("Directory Entry Size is [%ld] bytes, should be [512] bytes.\n", sizeof(directory_entry));
+    printf("Directory Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(directoryBlock));
     printf("=======================================================\n");
 
     if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
     if (sizeof(Inode) != 32) return false;
     if (sizeof(InodeBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
     if (sizeof(bitmap) != SOFTWARE_DISK_BLOCK_SIZE) return false;
+    if (sizeof(directory_entry) != 512) return false;
+    if (sizeof(directoryBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
     // add more if necessary
 
     return true;
@@ -306,15 +325,26 @@ File create_file(char *name) {
         return NULL;
     }
     
-    // creating the file [incomplete]
-    File f;
-    strcpy(f->filename, name);
-    f->isOpen = false;
+    // creating the file [incomplete] //
+
+    // setting up directory entry
+    directory_entry tmp;
+    strcpy(tmp.f->name, name);
+    tmp.f->size = 0;
+    tmp.f->isOpen = false;
+    tmp.f->mode = READ_ONLY;
+    tmp.f->pos = 0;
+    tmp.inodeNum = get_first_free_inode();
+
+    // add the directory entry to the first free directory block
+    // get_first_directory_spot()
+    // if there is another directory entry in the same block already, grab it
+    // write both directory entries back to the block
 
     // opening the file
-    f = open_file(name, READ_WRITE);
+    tmp.f = open_file(name, READ_WRITE);
 
-    return f;
+    return tmp.f;
 }
 
 // TODO: Implement!
