@@ -1,5 +1,6 @@
-// THIS AND FORMATFS.C ARE THE ONLY FILES WE ARE EDITING //
-// These are all the operations we will be doing on the initalized software disk from formatfs.c //
+// THIS AND FORMATFS.C ARE THE ONLY FILES WE ARE EDITING
+// These are all the operations we will be doing on the initalized software disk from formatfs.c
+// Authors: Lane Durst and Connor Morris
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,15 +19,16 @@
 // Globals & Defines //
 ///////////////////////
 
-#define MAX_NAME_SIZE               256 // in characters, 
-#define MAX_FILES                   300
-#define MAX_FILE_SIZE               144384
-#define DATA_BITMAP_BLOCK           0
-#define INODE_BITMAP_BLOCK          1
-#define FIRST_INODE_BLOCK           2
-#define FIRST_DATA_BLOCK            1   // note: unsure of value
-#define NUM_DIRECT_INODE_BLOCKS     13
-#define NUM_SINGLE_INDIRECT_BLOCKS  1
+#define MAX_NAME_SIZE               256     // max number of chars in the file name (includes null char) 
+#define MAX_FILES                   300     // max number of files the system can handle
+#define MAX_FILE_SIZE               144384  // (14 + 128) * 1024 = 144384 bytes
+#define DATA_BITMAP_BLOCK           0       // location of the data bitmap block on disk
+#define INODE_BITMAP_BLOCK          1       // location of the inode bitmap block on disk
+#define FIRST_INODE_BLOCK           2       // location of the first inode block on disk
+#define FIRST_DIRECTORY_BLOCK       3       // location of the first directory block on disk (NOTE: unsure of value)
+#define FIRST_DATA_BLOCK            4       // location of the first data block on disk (NOTE: unsure of value)
+#define NUM_DIRECT_INODE_BLOCKS     13      // number of direct blocks per file
+#define NUM_SINGLE_INDIRECT_BLOCKS  1       // number of indirect blocks per file
 
 // extern var, defined in filesystem.h
 FSError fserror = FS_NONE; // initially set to FS_NONE to prevent issues on startup
@@ -36,25 +38,28 @@ FSError fserror = FS_NONE; // initially set to FS_NONE to prevent issues on star
 ////////////////
 
 typedef struct FileInternals {
-    char *name;      
-    uint32_t size;  
-    bool isOpen; 
-    FileMode mode;    
-    uint32_t pos;   
+    char *name; // file name
+    uint32_t size; // file size
+    bool isOpen; // is the file currently being accessed?
+    FileMode mode; // access type; 'READ_WRITE' or 'READ_ONLY'
+    uint32_t pos; // current position in file
     // add more if necessary
 } FileInternals;
 
-// 512 bytes
-typedef struct directory_entry{
+// Type for Directory Entries. Structure must be 512 bytes long.
+typedef struct DirectoryEntry {
     File f; // file's metadata
     uint16_t inodeNum; // inode num associated with the file [2 bytes]
-    uint8_t empty[512-sizeof(File)-2];
-}directory_entry;
+    // add more if necessary
+    uint8_t empty[512 - sizeof(File) - 2]; // pad out the rest of the structure
+} DirectoryEntry;
 
-// should be 2 per block
-typedef struct directoryBlock{
-    directory_entry blk[SOFTWARE_DISK_BLOCK_SIZE/sizeof(directory_entry)];
-}directoryBlock;
+// Type for blocks of Directory Entries. Structure must be
+// SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
+// Each directory block includes 2 directory entries.
+typedef struct DirectoryBlock {
+    DirectoryEntry blk[SOFTWARE_DISK_BLOCK_SIZE / sizeof(DirectoryEntry)];
+} DirectoryBlock;
 
 // Type for one inode. Structure must be 32 bytes long.
 typedef struct Inode {
@@ -81,10 +86,10 @@ typedef struct IndirectBlock {
 
 // Type for one bitmap. Structure must be
 // SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
-typedef struct bitmap {
+typedef struct Bitmap {
     uint8_t bytes[SOFTWARE_DISK_BLOCK_SIZE / sizeof(uint8_t)]; 
     // A bitmap should have 8192 bits, in theory, and be a full block in size.
-} bitmap;
+} Bitmap;
 
 /////////////////////////////
 // Custom Helper Functions //
@@ -122,7 +127,7 @@ bool valid_name(char *name) {
 // mark block 'blk' allocated (1) or free (0) depending on 'flag'.
 // Returns false on error and true on success.
 static bool mark_block(uint16_t blk, bool flag) {
-    bitmap f;
+    Bitmap f;
 
     blk -= FIRST_DATA_BLOCK;
     if(! read_sd_block(&f, DATA_BITMAP_BLOCK)) {
@@ -148,7 +153,7 @@ static bool mark_block(uint16_t blk, bool flag) {
 // mark inode 'i' allocated (1) or free (0) depending on 'flag'.
 // Returns false on error and true on success. Sets fserror on I/O error.
 static bool mark_inode(uint16_t inode, bool flag) {
-    bitmap f;
+    Bitmap f;
 
     inode -= FIRST_INODE_BLOCK;
     if(! read_sd_block(&f.bytes, INODE_BITMAP_BLOCK)) {
@@ -172,15 +177,17 @@ static bool mark_inode(uint16_t inode, bool flag) {
 }
 
 // TODO: Implement!
-uint16_t get_first_free_inode(void){
+uint16_t get_first_free_inode(void) {
     // get the first free inode
     // set the bit as taken
     // return the inode number
 }
 
 // TODO: Implement!
-uint16_t get_first_directory_spot(void){
-    // get the first free directory spot
+uint16_t get_first_free_dir(void) {
+    // get the first free directory entry
+    // ???
+    // return the directory entry number
 }
 
 /////////////////////////////
@@ -278,17 +285,17 @@ bool check_structure_alignment(void) {
     printf("Disk Block Size is [%d] bytes, should be [1024] bytes.\n", SOFTWARE_DISK_BLOCK_SIZE);
     printf("Inode Size is [%ld] bytes, should be [32] bytes.\n", sizeof(Inode));
     printf("Inode Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(InodeBlock));
-    printf("Bitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(bitmap));
-    printf("Directory Entry Size is [%ld] bytes, should be [512] bytes.\n", sizeof(directory_entry));
-    printf("Directory Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(directoryBlock));
+    printf("Bitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(Bitmap));
+    printf("Directory Entry Size is [%ld] bytes, should be [512] bytes.\n", sizeof(DirectoryEntry));
+    printf("Directory Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(DirectoryBlock));
     printf("=======================================================\n");
 
     if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
     if (sizeof(Inode) != 32) return false;
     if (sizeof(InodeBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
-    if (sizeof(bitmap) != SOFTWARE_DISK_BLOCK_SIZE) return false;
-    if (sizeof(directory_entry) != 512) return false;
-    if (sizeof(directoryBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
+    if (sizeof(Bitmap) != SOFTWARE_DISK_BLOCK_SIZE) return false;
+    if (sizeof(DirectoryEntry) != 512) return false;
+    if (sizeof(DirectoryBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
     // add more if necessary
 
     return true;
@@ -308,7 +315,7 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
 
     // open the file
     
-    // treat current fileposition as byte 0
+    // treat current file position as byte 0
 
     return NULL; // temporary return, change later
 }
@@ -328,23 +335,23 @@ File create_file(char *name) {
     // creating the file [incomplete] //
 
     // setting up directory entry
-    directory_entry tmp;
-    strcpy(tmp.f->name, name);
-    tmp.f->size = 0;
-    tmp.f->isOpen = false;
-    tmp.f->mode = READ_ONLY;
-    tmp.f->pos = 0;
-    tmp.inodeNum = get_first_free_inode();
+    DirectoryEntry entry;
+    strcpy(entry.f->name, name);
+    entry.f->size = 0;
+    entry.f->isOpen = false;
+    entry.f->mode = READ_WRITE;
+    entry.f->pos = 0;
+    entry.inodeNum = get_first_free_inode();
 
     // add the directory entry to the first free directory block
-    // get_first_directory_spot()
+    // get_first_free_dir();
     // if there is another directory entry in the same block already, grab it
     // write both directory entries back to the block
 
     // opening the file
-    tmp.f = open_file(name, READ_WRITE);
+    entry.f = open_file(name, READ_WRITE);
 
-    return tmp.f;
+    return entry.f;
 }
 
 // TODO: Implement!
