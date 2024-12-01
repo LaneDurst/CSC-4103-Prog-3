@@ -5,8 +5,8 @@ Lane Durst & Connor Morris
 - block 0 is allocated for the Data Bitmap
 - block 1 is allocated for the Inode Bitmap
 - blocks 2-258 are allocated for Inode Blocks
-- blocks 259-359 are allocated for directory entries
-- blocks 360-8192 are allocated for data storage
+- blocks 259-264 are allocated for directory entries
+- blocks 265-8192 are allocated for data storage
 
 ## Bitmap structure
 There are two bitmaps contained in this filesystem.c implementation, the data bitmap and the inode bitmap. Their purpose is to log which data blocks and which inodes are free to be altered within the software disk. The bitmap structure is composed of an array of uint8_t elements, and is equal in size to an entire software disk block. In this case, that means 1024 uint8_t elements. However, these elements are not what operations on the bitmap affect directly. Instead, each inode or data block represented by a bitmap is represented by each individual bit of these elemenets. This means, for instance, that inode number 12 is not represented by the 12th element in the array, but is instead the 4th bit of the 2nd element of the array.
