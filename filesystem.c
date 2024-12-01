@@ -12,8 +12,8 @@
 #include <pthread.h>
 #include <ctype.h>
 
-#include "filesystem.h"
 #include "softwaredisk.h"
+#include "filesystem.h"
 
 ///////////////////////
 // Globals & Defines //
@@ -30,8 +30,8 @@
 #define NUM_DIRECT_INODE_BLOCKS     13      // number of direct blocks per file
 #define NUM_SINGLE_INDIRECT_BLOCKS  1       // number of indirect blocks per file
 
-// extern var, defined in filesystem.h
-FSError fserror = FS_NONE; // initially set to FS_NONE to prevent issues on startup
+// filesystem error code set (set by each filesystem function)
+FSError fserror;
 
 ////////////////
 // Structures //
@@ -58,7 +58,7 @@ typedef struct DirectoryEntry {
 // Each directory block includes 3 directory entries.
 typedef struct DirectoryBlock {
     DirectoryEntry blk[3]; // 3 directory entries per block
-    uint8_t empty[SOFTWARE_DISK_BLOCK_SIZE-(3*sizeof(DirectoryEntry))] // padding out empty space
+    uint8_t empty[SOFTWARE_DISK_BLOCK_SIZE-(3*sizeof(DirectoryEntry))]; // padding out empty space
 } DirectoryBlock;
 
 // Type for one inode. Structure must be 32 bytes long.
@@ -188,7 +188,7 @@ uint8_t first_free_bit(uint8_t byte)
             return i;
         }
     }
-    return NULL;
+    return -1;
 }
 
 // TODO: Check if the function fails correctly, because we can only return an integer
@@ -207,7 +207,7 @@ uint16_t get_first_free_inode(void) {
         int length = sizeof(f.bytes) / sizeof(f.bytes[0]);
         for (int i = 0; i < length; i++)
         {
-            if (first_free_bit(f.bytes[i]) != NULL) return ((8*i)+first_free_bit(f.bytes[i]));
+            if (first_free_bit(f.bytes[i]) != -1) return ((8*i)+first_free_bit(f.bytes[i]));
         }
     }
 
@@ -402,7 +402,6 @@ void close_file(File file) {
     fserror = FS_NONE;
     if(!(file->isOpen)) { // TODO: figure out how to get the name, since file_exists needs the name, not the pointer
         fserror = FS_FILE_NOT_OPEN;
-        return NULL;
     }
     else {
         file->isOpen = false;
