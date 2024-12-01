@@ -344,7 +344,9 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
         return NULL;
     }
 
-    // open the file
+    // find the directory entry associate with the file (assuming one exists)
+    // update f.isOpen field to be true
+    // update f.mode to be the same as mode (argument)
     
     // treat current file position as byte 0
 
@@ -400,9 +402,10 @@ void close_file(File file) {
     fserror = FS_NONE;
     if(!(file->isOpen)) { // TODO: figure out how to get the name, since file_exists needs the name, not the pointer
         fserror = FS_FILE_NOT_OPEN;
+        return NULL;
     }
     else {
-        // close the file
+        file->isOpen = false;
     }
 }
 
@@ -447,6 +450,9 @@ uint64_t write_file(File file, void *buf, uint64_t numbytes) {
         fserror = FS_EXCEEDS_MAX_FILE_SIZE;
         return readbytes;
     }
+
+    // part of this will actually require accessing the inode value associated with the file
+    // and updating its array to include the new block we just wrote
 
     // instead of a for loop, should probably do a memcpy operation into the file location from buf for as many bytes as possible
     // write to the file
