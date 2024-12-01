@@ -199,7 +199,7 @@ uint16_t get_first_free_inode(void) {
     uint16_t failure = -1; // set fail state of -1 (equal to UINT16_MAX)
     bitmap f;
     
-    if(!read_sd_block(&f, INODE_BITMAP_BLOCK)) { // attempt to read inode bitmap from disk
+    if(!read_sd_block(&f.bytes, INODE_BITMAP_BLOCK)) { // attempt to read inode bitmap from disk
         fserror = FS_IO_ERROR; // can't read from disk, set fserror & return -1
     }
     else
@@ -364,6 +364,11 @@ File create_file(char *name) {
     }
     
     // creating the file [incomplete] //
+    bitmap b;
+    if(! read_sd_block(b.bytes, INODE_BITMAP_BLOCK)) {
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
 
     // setting up directory entry
     DirectoryEntry entry;
@@ -373,6 +378,11 @@ File create_file(char *name) {
     entry.f->mode = READ_WRITE;
     entry.f->pos = 0;
     entry.inodeNum = get_first_free_inode();
+    set_bit(b.bytes, entry.inodeNum); // actually marking the inode as taken
+    if(! write_sd_block(b.bytes, INODE_BITMAP_BLOCK)) { // updating bitmap in memory
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
 
     // add the directory entry to the first free directory block
     // get_first_free_dir();
