@@ -38,7 +38,7 @@ FSError fserror;
 ////////////////
 
 typedef struct FileInternals {
-    char *name; // file name
+    char name[256]; // file name
     uint32_t size; // file size
     bool isOpen; // is the file currently being accessed?
     FileMode mode; // access type; 'READ_WRITE' or 'READ_ONLY'
@@ -46,7 +46,7 @@ typedef struct FileInternals {
     // add more if necessary
 } FileInternals;
 
-// Type for Directory Entries. Structure must be 512 bytes long.
+// Type for Directory Entries.
 typedef struct DirectoryEntry {
     File f; // file's metadata
     uint16_t inodeNum; // inode num associated with the file [2 bytes]
@@ -57,8 +57,9 @@ typedef struct DirectoryEntry {
 // SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
 // Each directory block includes 3 directory entries.
 typedef struct DirectoryBlock {
-    DirectoryEntry blk[3]; // 3 directory entries per block
-    uint8_t empty[SOFTWARE_DISK_BLOCK_SIZE-(3*sizeof(DirectoryEntry))]; // padding out empty space
+    // because this is integer division and not float division, this should not give a decimal value
+    // for number of directory entries per block
+    DirectoryEntry blk[SOFTWARE_DISK_BLOCK_SIZE/sizeof(DirectoryEntry)]; // 64 directory entries per block, in this instance
 } DirectoryBlock;
 
 // Type for one inode. Structure must be 32 bytes long.
@@ -312,14 +313,16 @@ void fs_print_error(void) {
 }
 
 bool check_structure_alignment(void) {
-    printf("================Structure=Alignment====================\n");
+    printf("================Structure=Alignment=====================================================\n");
     printf("Disk Block Size is [%d] bytes, should be [1024] bytes.\n", SOFTWARE_DISK_BLOCK_SIZE);
-    printf("Inode Size is [%ld] bytes, should be [32] bytes.\n", sizeof(Inode));
+    printf("\nbitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(bitmap));
+    printf("\nInode Size is [%ld] bytes, should be [32] bytes.\n", sizeof(Inode));
     printf("Inode Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(InodeBlock));
-    printf("bitmap Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(bitmap));
-    printf("Directory Entry Size is [%ld] bytes, should be [512] bytes.\n", sizeof(DirectoryEntry));
+    printf("Each Inode Block contains [%ld] inodes, should contain [32] inodes.\n", sizeof(InodeBlock)/sizeof(Inode));
+    printf("\nDirectory Entry Size is [%ld] bytes, should be [16] bytes.\n", sizeof(DirectoryEntry));
     printf("Directory Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(DirectoryBlock));
-    printf("=======================================================\n");
+    printf("Each Directory Block contains [%ld] directory entries, should be [64] directory entries.\n", sizeof(DirectoryBlock)/sizeof(DirectoryEntry));
+    printf("========================================================================================\n");
 
     if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
     if (sizeof(Inode) != 32) return false;
