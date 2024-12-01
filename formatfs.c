@@ -3,19 +3,30 @@
 // Authors: Lane Durst and Connor Morris
 
 #include <stdio.h>
-#include "filesystem.c"
+
 #include "softwaredisk.h"
+#include "filesystem.h"
+
+// NOTE: There is probably a better way to do this rather than just redefining the
+// structure again, but i couldn't figure it out
+
+// Type for one bitmap. Structure must be
+// SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
+typedef struct bitmap {
+    uint8_t bytes[SOFTWARE_DISK_BLOCK_SIZE / sizeof(uint8_t)]; 
+    // A bitmap should have 8192 bits, in theory, and be a full block in size.
+} bitmap;
 
 void setup_disk(void) {
     // initializing data_bitmap
     bitmap data_bitmap;
-    bzero(data_bitmap.bytes);
-    write_sd_block(data_bitmap.bytes, DATA_BITMAP_BLOCK);
+    memset(data_bitmap.bytes, 0, sizeof(data_bitmap.bytes));
+    write_sd_block(data_bitmap.bytes, 0);
 
     // initializing inode_bitmap
     bitmap inode_bitmap;
-    bzero(inode_bitmap.bytes);
-    write_sd_block(inode_bitmap.bytes, INODE_BITMAP_BLOCK);
+    memset(inode_bitmap.bytes, 0, sizeof(inode_bitmap.bytes));
+    write_sd_block(inode_bitmap.bytes, 1);
 }
 
 int main(int argc, char* argv[]) {
