@@ -8,12 +8,12 @@
 
 void setup_disk(void) {
     // initializing data_bitmap
-    Bitmap data_bitmap;
+    bitmap data_bitmap;
     bzero(data_bitmap.bytes);
     write_sd_block(data_bitmap.bytes, DATA_BITMAP_BLOCK);
 
     // initializing inode_bitmap
-    Bitmap inode_bitmap;
+    bitmap inode_bitmap;
     bzero(inode_bitmap.bytes);
     write_sd_block(inode_bitmap.bytes, INODE_BITMAP_BLOCK);
 }
