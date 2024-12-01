@@ -156,7 +156,8 @@ static bool mark_inode(uint16_t inode, bool flag) {
     Bitmap f;
 
     inode -= FIRST_INODE_BLOCK;
-    if(! read_sd_block(&f.bytes, INODE_BITMAP_BLOCK)) {
+    if(! read_sd_block(&f, INODE_BITMAP_BLOCK)) {
+        fserror = FS_IO_ERROR;
         return false;
     }
     else {
@@ -169,6 +170,7 @@ static bool mark_inode(uint16_t inode, bool flag) {
             f.bytes[inode / 8] &= ~(1 << (7 - (inode % 8)));
         }
         if (! write_sd_block(&f, INODE_BITMAP_BLOCK)) {
+            fserror = FS_IO_ERROR;
             return false;
         }
     }
@@ -176,11 +178,32 @@ static bool mark_inode(uint16_t inode, bool flag) {
     return true;
 }
 
-// TODO: Implement!
+// TODO: Check if the function fails correctly, because we can only return an integer
+// Searches the Inode Bitmap for the first free Inode, then sets 
+// the Inode as taken & returns the Inode number. Sets fserror on I/O error.
 uint16_t get_first_free_inode(void) {
-    // get the first free inode
-    // set the bit as taken
-    // return the inode number
+    uint16_t inode_num = -1; // set fail state of -1 (equal to UINT16_MAX)
+    Bitmap f;
+    
+    if(!read_sd_block(&f, INODE_BITMAP_BLOCK)) { // attempt to read inode bitmap from disk
+        fserror = FS_IO_ERROR; // can't read from disk, set fserror & return -1
+    }
+    else {
+        for (int i = 0; i < 1024; i++) {
+            if (!is_bit_set(&f, i)) { // look for an inode that hasn't been set
+                inode_num = i; // save the index as the inode number
+                break;
+            }
+        }
+        if (inode_num != NULL) {
+            mark_inode(inode_num, true); // set inode as taken
+        }
+        else {
+            fserror = FS_OUT_OF_SPACE; // couldn't find a free inode, set fserror & return -1
+        }
+    }
+
+    return inode_num; // return the number of the first free inode or -1 upon fail
 }
 
 // TODO: Implement!
