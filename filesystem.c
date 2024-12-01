@@ -207,7 +207,7 @@ uint16_t get_first_free_inode(void) {
         int length = sizeof(f.bytes) / sizeof(f.bytes[0]);
         for (int i = 0; i < length; i++)
         {
-            if (first_free_bit(f.bytes[i]) != NULL) return i*first_free_bit(f.bytes[i]);
+            if (first_free_bit(f.bytes[i]) != NULL) return ((8*i)+first_free_bit(f.bytes[i]));
         }
     }
 
