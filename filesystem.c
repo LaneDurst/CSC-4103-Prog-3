@@ -37,15 +37,6 @@ FSError fserror;
 // Structures //
 ////////////////
 
-typedef struct FileInternals {
-    char name[256]; // file name
-    uint32_t size; // file size
-    bool isOpen; // is the file currently being accessed?
-    FileMode mode; // access type; 'READ_WRITE' or 'READ_ONLY'
-    uint32_t pos; // current position in file
-    // add more if necessary
-} FileInternals;
-
 // Type for Directory Entries.
 typedef struct DirectoryEntry {
     char name[256]; // file name
@@ -59,6 +50,16 @@ typedef struct DirectoryBlock {
     // for number of directory entries per block
     DirectoryEntry blk[SOFTWARE_DISK_BLOCK_SIZE/sizeof(DirectoryEntry)]; // 4? directory entries per block, in this instance
 } DirectoryBlock;
+
+typedef struct FileInternals {
+    char name[256];
+    uint16_t inodeNum; // the inode associated with the file
+    uint32_t size; // file size
+    bool isOpen; // is the file currently being accessed?
+    FileMode mode; // access type; 'READ_WRITE' or 'READ_ONLY'
+    uint32_t pos; // current position in file
+    // add more if necessary
+} FileInternals;
 
 // Type for one inode. Structure must be 32 bytes long.
 typedef struct Inode {
@@ -254,7 +255,7 @@ bool file_exists(char *name) {
 
     // find the directory entry associated with the file (assuming one exists)
     DirectoryBlock b;
-    for (int i = 0; i < 5; i++){ // there are five directory blocks
+    for (int i = 0; i < 75; i++){ // there are seventy-five directory blocks
         read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
         for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
             if (b.blk[j].name == name) return true;
@@ -346,23 +347,26 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
 
     // find the directory entry associated with the file (assuming one exists)
     DirectoryBlock b;
-    for (int i = 0; i < 5; i++){ // there are five directory blocks
+    int i, j; // we need this outside of this
+    for (i = 0; i < 75; i++){ // there are seventy-five directory blocks
+        bool found = false;
         read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
-        for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
-            if (b.blk[j].name == name) return ((64*i)+j);
+        for (j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
+            if (b.blk[j].name == name)
+            {
+                found = true;
+                break;
+            }
         }
+        if (found) break;
     }
-    // add the directory entry to the first free directory block
-    uint16_t raw = get_first_free_dir();
-    uint16_t blkNum = raw/64; //because of the way int math works this should give a rounded down whole number
-    uint16_t blkPos = raw%64;
 
-    DirectoryBlock c;
-    read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
-    // do stuff with the entry
-    write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
-    
-    // treat current file position as byte 0
+
+    File f; // this is the returned file
+    f->mode = mode;
+    strcpy(f->name, name);
+    f->inodeNum = ((4*i)+j);
+    f->pos = 0; // treat current file position as byte 0
 
     return NULL; // temporary return, change later
 }
