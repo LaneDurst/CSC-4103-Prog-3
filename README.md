@@ -19,5 +19,5 @@ The directory entry structure is composed of one part, a refrence to the file. I
 Because the structure of a directory entry causes it to not evenly fit into a software disk block, when a directory block is initialized only 3 entries are placed into the block. The remaining space is then filled with an array of uint8_t elements, appropriately named 'empty'. No operations are performed using these bytes, they exist solely to ensure structure alignment
 
 ## Implementation limitations
-- the system is currently only able to support 300 files at maximum (this is because currently one 100 blocks are allocated for directory entries, and each block contains only 3 directory entries)
+- the system is currently only able to support 300 files at maximum (this is because currently only 75 blocks are allocated for directory entries, and each block contains only 4 directory entries)
 - the system does not allow for filenames greater than 256 characters, and each MUST NOT start with a null character and MUST end in a null character. [This also effectively means the name must be at least 2 characters long, including the null character that terminates the string]
