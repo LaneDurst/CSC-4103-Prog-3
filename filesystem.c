@@ -215,18 +215,6 @@ uint16_t get_first_free_inode(void) {
     return failure; // return the number of the first free inode or -1 upon fail
 }
 
-// probably slow, might be a better way to do this
-uint16_t get_first_free_dir(void) {
-    // read through each block and check if there is a free dir entry space
-    DirectoryBlock b;
-    for (int i = 0; i < 5; i++){ // there are five directory blocks
-        read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
-        for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
-            if (b.blk[j].f->name == NULL) return ((64*i)+j);
-        }
-    }
-}
-
 /////////////////////////////
 // Header Helper Functions //
 /////////////////////////////
@@ -381,6 +369,7 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
     return c.blk[blkPos].f; // temporary return, change later
 }
 
+// might need to change this code as directory entries may be setup incorrectly
 File create_file(char *name) {
     fserror = FS_NONE;
     if(!valid_name(name)) { // first, check that the new filename is valid
@@ -414,15 +403,20 @@ File create_file(char *name) {
     }
 
     // add the directory entry to the first free directory block
-    uint16_t raw = get_first_free_dir();
-    uint16_t blkNum = raw/64; //because of the way int math works this should give a rounded down whole number
-    uint16_t blkPos = raw%64;
+    uint16_t blkNum = entry.inodeNum/64; // inode num and directory number should be equivalent at all times
+    uint16_t blkPos = entry.inodeNum%64;
 
     DirectoryBlock c;
-    read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
+    if(!read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum)){
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
     memcpy(c.blk[blkPos].f, entry.f, sizeof(entry.f));
     memcpy(c.blk[blkPos].inodeNum, entry.inodeNum, sizeof(entry.inodeNum));
-    write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
+    if (! write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum)){
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
 
     // opening the file
     File ret = open_file(name, READ_WRITE);
