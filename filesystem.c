@@ -20,13 +20,13 @@
 ///////////////////////
 
 #define MAX_NAME_SIZE               256     // max number of chars in the file name (includes null char) 
-#define MAX_FILES                   300     // max number of files the system can handle
+#define MAX_FILES                   320     // max number of files the system can handle
 #define MAX_FILE_SIZE               144384  // (14 + 128) * 1024 = 144384 bytes
 #define DATA_BITMAP_BLOCK           0       // location of the data bitmap block on disk
 #define INODE_BITMAP_BLOCK          1       // location of the inode bitmap block on disk
-#define FIRST_INODE_BLOCK           2       // location of the first inode block on disk
-#define FIRST_DIRECTORY_BLOCK       259     // location of the first directory block on disk (NOTE: unsure of value)
-#define FIRST_DATA_BLOCK            265     // location of the first data block on disk (NOTE: unsure of value)
+#define FIRST_INODE_BLOCK           2       // location of the first inode block on disk (there are 256 total)
+#define FIRST_DIRECTORY_BLOCK       259     // location of the first directory block on disk (there are 5 total)
+#define FIRST_DATA_BLOCK            265     // location of the first data block on disk
 #define NUM_DIRECT_INODE_BLOCKS     13      // number of direct blocks per file
 #define NUM_SINGLE_INDIRECT_BLOCKS  1       // number of indirect blocks per file
 
