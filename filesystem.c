@@ -354,12 +354,28 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
     }
 
     // find the directory entry associate with the file (assuming one exists)
-    // update f.isOpen field to be true
-    // update f.mode to be the same as mode (argument)
+    DirectoryBlock b;
+    for (int i = 0; i < 5; i++){ // there are five directory blocks
+        read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
+        for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
+            if (b.blk[j].f->name == name) return ((64*i)+j);
+        }
+    }
+    // add the directory entry to the first free directory block
+    uint16_t raw = get_first_free_dir();
+    uint16_t blkNum = raw/64; //because of the way int math works this should give a rounded down whole number
+    uint16_t blkPos = raw%64;
+
+    DirectoryBlock c;
+    read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
+    c.blk[blkPos].f->isOpen = true;
+    c.blk[blkPos].f->mode = mode;
+    c.blk[blkPos].f->pos = 0;
+    write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
     
     // treat current file position as byte 0
 
-    return NULL; // temporary return, change later
+    return c.blk[blkPos].f; // temporary return, change later
 }
 
 // TODO: Implement!
@@ -407,9 +423,9 @@ File create_file(char *name) {
     write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
 
     // opening the file
-    entry.f = open_file(name, READ_WRITE);
+    File ret = open_file(name, READ_WRITE);
 
-    return entry.f;
+    return ret;
 }
 
 // TODO: Implement!
