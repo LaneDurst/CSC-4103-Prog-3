@@ -215,7 +215,6 @@ uint16_t get_first_free_inode(void) {
     return failure; // return the number of the first free inode or -1 upon fail
 }
 
-// TODO: Implement!
 // probably slow, might be a better way to do this
 uint16_t get_first_free_dir(void) {
     // read through each block and check if there is a free dir entry space
@@ -264,14 +263,19 @@ bool delete_file(char *name) {
     return false;
 }
 
-// TODO: Implement!
 bool file_exists(char *name) {
     fserror = FS_NONE;
-    bool exists = false; // return value for the function; assume we are going to return false
 
-    // check the directory blocks?
+    // find the directory entry associated with the file (assuming one exists)
+    DirectoryBlock b;
+    for (int i = 0; i < 5; i++){ // there are five directory blocks
+        read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
+        for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
+            if (b.blk[j].f->name == name) return true;
+        }
+    }
 
-    return exists;
+    return false;
 }
 
 void fs_print_error(void) {
@@ -345,7 +349,6 @@ bool check_structure_alignment(void) {
 // Main Operating Functions //
 //////////////////////////////
 
-// TODO: Implement!
 File open_file(char *name, FileMode mode) { // the 'mode' referred to here is read/write [execute isn't tested here]
     fserror = FS_NONE;
     if (!file_exists(name)) { // do this now so we don't accidentally try to open a nonexistant file
@@ -353,7 +356,7 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
         return NULL;
     }
 
-    // find the directory entry associate with the file (assuming one exists)
+    // find the directory entry associated with the file (assuming one exists)
     DirectoryBlock b;
     for (int i = 0; i < 5; i++){ // there are five directory blocks
         read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
@@ -378,7 +381,6 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
     return c.blk[blkPos].f; // temporary return, change later
 }
 
-// TODO: Implement!
 File create_file(char *name) {
     fserror = FS_NONE;
     if(!valid_name(name)) { // first, check that the new filename is valid
