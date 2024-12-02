@@ -25,8 +25,8 @@
 #define DATA_BITMAP_BLOCK           0       // location of the data bitmap block on disk
 #define INODE_BITMAP_BLOCK          1       // location of the inode bitmap block on disk
 #define FIRST_INODE_BLOCK           2       // location of the first inode block on disk (there are 256 total)
-#define FIRST_DIRECTORY_BLOCK       259     // location of the first directory block on disk (there are 5 total)
-#define FIRST_DATA_BLOCK            334     // location of the first data block on disk
+#define FIRST_DIRECTORY_BLOCK       259     // location of the first directory block on disk (there are 100 total)
+#define FIRST_DATA_BLOCK            360     // location of the first data block on disk
 #define NUM_DIRECT_INODE_BLOCKS     13      // number of direct blocks per file
 #define NUM_SINGLE_INDIRECT_BLOCKS  1       // number of indirect blocks per file
 
@@ -40,6 +40,7 @@ FSError fserror;
 // Type for Directory Entries.
 typedef struct DirectoryEntry {
     char name[256]; // file name
+    bool isOpen;
 } DirectoryEntry;
 
 // Type for blocks of Directory Entries. Structure must be
@@ -55,7 +56,6 @@ typedef struct FileInternals {
     char name[256];
     uint16_t inodeNum; // the inode associated with the file
     uint32_t size; // file size
-    bool isOpen; // is the file currently being accessed?
     FileMode mode; // access type; 'READ_WRITE' or 'READ_ONLY'
     uint32_t pos; // current position in file
     // add more if necessary
@@ -181,8 +181,7 @@ static bool mark_inode(uint16_t inode, bool flag) {
 // finds the first free bit in a byte of data
 // returns the bit number if there is a free bit
 // otherwise, returns null
-uint8_t first_free_bit(uint8_t byte)
-{
+uint8_t first_free_bit(uint8_t byte){
     for (int i = 0; i < 8; i++){
         if (!(byte & (1 <<i))){
             return i;
@@ -348,7 +347,7 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
     // find the directory entry associated with the file
     DirectoryBlock b;
     int i, j; // we need these to calculate the inode num
-    for (i = 0; i < 75; i++){ // there are seventy-five directory blocks
+    for (i = 0; i < 100; i++){ // there are seventy-five directory blocks
         bool found = false;
         read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
         for (j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
@@ -362,7 +361,7 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
     }
 
 
-    File f; // this is the returned file
+    File f = malloc(sizeof(File)); // this is the returned file
     f->mode = mode;
     strcpy(f->name, name);
     f->inodeNum = ((4*i)+j);
@@ -401,8 +400,8 @@ File create_file(char *name) {
     }
 
     // add the directory entry to the first free directory block
-    uint16_t blkNum = inodeNum/64; // inode num and directory number should be equivalent at all times
-    uint16_t blkPos = inodeNum%64;
+    uint16_t blkNum = inodeNum/3; // inode num and directory number should be equivalent at all times
+    uint16_t blkPos = inodeNum%3;
 
     DirectoryBlock c;
     if(!read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum)){
@@ -418,18 +417,25 @@ File create_file(char *name) {
 
     // opening the file
     File ret = open_file(name, READ_WRITE);
+    entry.isOpen = true;
 
     return ret;
 }
 
-// TODO: Implement!
 void close_file(File file) {
     fserror = FS_NONE;
-    if(!(file->isOpen)) { // TODO: figure out how to get the name, since file_exists needs the name, not the pointer
+    if(file == NULL) { // TODO: figure out how to get the name, since file_exists needs the name, not the pointer
         fserror = FS_FILE_NOT_OPEN;
     }
     else {
-        file->isOpen = false;
+        uint16_t dir = file.inodeNum;
+        DirectoryBlock b;
+        read_sd_block(b.blk, dir/3);
+        b.blk[dir%3].isOpen = false;
+        write_sd_block(b.blk, dir/3);
+        memset(file, 0, sizeof(file));
+        free(file);
+        file = NULL;
     }
 }
 
