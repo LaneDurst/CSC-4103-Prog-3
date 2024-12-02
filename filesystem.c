@@ -396,9 +396,15 @@ File create_file(char *name) {
     }
 
     // add the directory entry to the first free directory block
-    // get_first_free_dir();
-    // if there is another directory entry in the same block already, grab it
-    // write both directory entries back to the block
+    uint16_t raw = get_first_free_dir();
+    uint16_t blkNum = raw/64; //because of the way int math works this should give a rounded down whole number
+    uint16_t blkPos = raw%64;
+
+    DirectoryBlock c;
+    read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
+    memcpy(c.blk[blkPos].f, entry.f, sizeof(entry.f));
+    memcpy(c.blk[blkPos].inodeNum, entry.inodeNum, sizeof(entry.inodeNum));
+    write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum);
 
     // opening the file
     entry.f = open_file(name, READ_WRITE);
