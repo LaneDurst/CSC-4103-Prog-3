@@ -216,10 +216,16 @@ uint16_t get_first_free_inode(void) {
 }
 
 // TODO: Implement!
+// probably slow, might be a better way to do this
 uint16_t get_first_free_dir(void) {
-    // get the first free directory entry
-    // ???
-    // return the directory entry number
+    // read through each block and check if there is a free dir entry space
+    DirectoryBlock b;
+    for (int i = 0; i < 5; i++){ // there are five directory blocks
+        read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
+        for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
+            if (b.blk[j].f->name == NULL) return ((64*i)+j);
+        }
+    }
 }
 
 /////////////////////////////
