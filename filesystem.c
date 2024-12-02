@@ -368,7 +368,7 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
     f->inodeNum = ((4*i)+j);
     f->pos = 0; // treat current file position as byte 0
 
-    return NULL; // temporary return, change later
+    return f; // temporary return, change later
 }
 
 // might need to change this code as directory entries may be setup incorrectly
