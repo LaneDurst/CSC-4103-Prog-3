@@ -345,9 +345,9 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
         return NULL;
     }
 
-    // find the directory entry associated with the file (assuming one exists)
+    // find the directory entry associated with the file
     DirectoryBlock b;
-    int i, j; // we need this outside of this
+    int i, j; // we need these to calculate the inode num
     for (i = 0; i < 75; i++){ // there are seventy-five directory blocks
         bool found = false;
         read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
