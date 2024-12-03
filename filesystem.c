@@ -25,10 +25,12 @@
 #define DATA_BITMAP_BLOCK           0       // location of the data bitmap block on disk
 #define INODE_BITMAP_BLOCK          1       // location of the inode bitmap block on disk
 #define FIRST_INODE_BLOCK           2       // location of the first inode block on disk (there are 256 total)
-#define FIRST_DIRECTORY_BLOCK       259     // location of the first directory block on disk (there are 100 total)
-#define FIRST_DATA_BLOCK            360     // location of the first data block on disk
+#define FIRST_DIRECTORY_BLOCK       259     // location of the first directory block on disk (there are 150 total)
+#define FIRST_DATA_BLOCK            410     // location of the first data block on disk
 #define NUM_DIRECT_INODE_BLOCKS     13      // number of direct blocks per file
 #define NUM_SINGLE_INDIRECT_BLOCKS  1       // number of indirect blocks per file
+#define DIRECTORIES_PER_BLOCK       sizeof(DirectoryBlock)/sizeof(DirectoryEntry) // should be 2
+#define INODES_PER_BLOCK            sizeof(InodeBlock)/sizeof(Inode) // should be 32
 
 // filesystem error code set (set by each filesystem function)
 FSError fserror;
@@ -39,23 +41,23 @@ FSError fserror;
 
 // Type for Directory Entries.
 typedef struct DirectoryEntry {
-    char name[256]; // file name
+    char name[MAX_NAME_SIZE]; // file name
     bool isOpen;
+    char empty [512-MAX_NAME_SIZE-sizeof(isOpen)]; // we need to pad this here so they are all consistent sizes in the directory blocks
 } DirectoryEntry;
 
 // Type for blocks of Directory Entries. Structure must be
 // SOFTWARE_DISK_BLOCK_SIZE bytes (software disk block size).
-// Each directory block includes 3 directory entries.
+// Each directory block includes 2 directory entries.
 typedef struct DirectoryBlock {
     // because this is integer division and not float division, this should not give a decimal value
     // for number of directory entries per block
-    DirectoryEntry blk[SOFTWARE_DISK_BLOCK_SIZE/sizeof(DirectoryEntry)]; // 4? directory entries per block, in this instance
+    DirectoryEntry blk[SOFTWARE_DISK_BLOCK_SIZE/sizeof(DirectoryEntry)]; // 2 directory entries per block, in this instance
 } DirectoryBlock;
 
 typedef struct FileInternals {
     char name[256];
     uint16_t inodeNum; // the inode associated with the file
-    uint32_t size; // file size
     FileMode mode; // access type; 'READ_WRITE' or 'READ_ONLY'
     uint32_t pos; // current position in file
     // add more if necessary
@@ -213,40 +215,97 @@ uint16_t get_first_free_inode(void) {
     return failure; // return the number of the first free inode or -1 upon fail
 }
 
+// scans directory entries for the corresponding file
+// and checks if the isOpen value is True or False. This
+// value is what is returned by the function.
+bool isOpen(char *name){
+    DirectoryBlock b;
+    for (int i = 0; i < 150; i++){ // there are 150 directory blocks
+        read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
+        for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
+            if (b.blk[j].name == name) return b.blk[j].isOpen;
+        }
+    }
+}
+
 /////////////////////////////
 // Header Helper Functions //
 /////////////////////////////
 
-// TODO: Implement!
-bool seek_file(File file, uint64_t bytepos) {
+bool seek_file(File file, uint64_t bytepos) {// TODO: Implement!
     fserror = FS_NONE;
-    bool success = false; // return value for the function; assume we are going to return false
+    if (file == NULL)
+    {
+        fserror = FS_FILE_NOT_FOUND;
+        return false;
+    }
+    if (bytepos > MAX_FILE_SIZE)
+    {
+        fserror = FS_EXCEEDS_MAX_FILE_SIZE;
+        return false;
+    }
 
     // set current position in file using 'bytepos' relative to start of file
+    file->pos = bytepos;
     
-    return success;
+    return true;
 }
 
-// TODO: Implement!
 uint64_t file_length(File file) {
     fserror = FS_NONE;
 
-    // use the inodes(?) to find the file start and end
-    // do basic subtraction
-
-    return 0; // temporary return value, change later
+    InodeBlock iBlk;
+    uint16_t iBlkNum = file->inodeNum/INODES_PER_BLOCK;
+    uint16_t iBlkPos = file->inodeNum%INODES_PER_BLOCK;
+    if(!read_sd_block(iBlk.inodes, FIRST_INODE_BLOCK+iBlkNum)){
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
+    return iBlk.inodes[iBlkPos].size;
 }
 
-// TODO: Implement!
 bool delete_file(char *name) {
     fserror = FS_NONE;
-    if (file_exists(name)) {
-        
-        // delete the file
-        
-        return true;
+    if(isOpen(name)){
+        fserror = FS_FILE_OPEN;
+        return false;
     }
-    return false;
+    if (!file_exists(name)) {
+        fserror = FS_FILE_NOT_FOUND;
+        return false;
+    }
+
+    // find the directory entry associated with the file
+    DirectoryBlock b;
+    int i, j; // we need these to calculate the inode num
+    for (i = 0; i < 100; i++){ // there are seventy-five directory blocks
+        bool found = false;
+        read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
+        for (j = 0; j < DIRECTORIES_PER_BLOCK; j++){ // read through every element in the block
+            if (b.blk[j].name == name)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
+    }
+
+    // zeroing the directory entry //
+    DirectoryBlock c;
+    if(!read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+i)){
+        fserror = FS_IO_ERROR;
+        return false;
+    }
+    memset(c.blk[j].empty, 0, sizeof(c.blk[j].empty)); // should already be 0, but whatever
+    memset(c.blk[j].name, 0, sizeof(c.blk[j].name));
+    memset(c.blk[j].isOpen, 0, sizeof(c.blk[j].isOpen));
+    if(!write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+i)){
+        fserror = FS_IO_ERROR;
+        return false;
+    }
+    
+    return true;
 }
 
 bool file_exists(char *name) {
@@ -254,9 +313,9 @@ bool file_exists(char *name) {
 
     // find the directory entry associated with the file (assuming one exists)
     DirectoryBlock b;
-    for (int i = 0; i < 75; i++){ // there are seventy-five directory blocks
+    for (int i = 0; i < 150; i++){ // there are 150 directory blocks
         read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
-        for (int j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
+        for (int j = 0; j < DIRECTORIES_PER_BLOCK; j++){ // read through every element in the block
             if (b.blk[j].name == name) return true;
         }
     }
@@ -315,9 +374,9 @@ bool check_structure_alignment(void) {
     printf("Inode Size is [%ld] bytes, should be [32] bytes.\n", sizeof(Inode));
     printf("Inode Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(InodeBlock));
     printf("Each Inode Block contains [%ld] inodes, should contain [32] inodes.\n", sizeof(InodeBlock)/sizeof(Inode));
-    printf("Directory Entry Size is [%ld] bytes, should be [16] bytes.\n", sizeof(DirectoryEntry));
+    printf("Directory Entry Size is [%ld] bytes, should be [512] bytes.\n", sizeof(DirectoryEntry));
     printf("Directory Block Size is [%ld] bytes, should be [1024] bytes.\n", sizeof(DirectoryBlock));
-    printf("Each Directory Block contains [%ld] directory entries, should be [4] directory entries.\n", sizeof(DirectoryBlock)/sizeof(DirectoryEntry));
+    printf("Each Directory Block contains [%ld] directory entries, should be [2] directory entries.\n", sizeof(DirectoryBlock)/sizeof(DirectoryEntry));
     printf("========================================================================================\n");
 
     if (SOFTWARE_DISK_BLOCK_SIZE != 1024) return false;
@@ -327,7 +386,7 @@ bool check_structure_alignment(void) {
     if (sizeof(InodeBlock)/sizeof(Inode) != 32) return false;
     if (sizeof(DirectoryEntry) != 512) return false;
     if (sizeof(DirectoryBlock) != SOFTWARE_DISK_BLOCK_SIZE) return false;
-    if (sizeof(DirectoryBlock)/sizeof(DirectoryEntry) != 4) return false;
+    if (sizeof(DirectoryBlock)/sizeof(DirectoryEntry) != 2) return false;
     // add more if necessary
 
     return true;
@@ -350,7 +409,7 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
     for (i = 0; i < 100; i++){ // there are seventy-five directory blocks
         bool found = false;
         read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+i);
-        for (j = 0; j < (sizeof(DirectoryBlock)/sizeof(DirectoryEntry)); j++){ // read through every element in the block
+        for (j = 0; j < DIRECTORIES_PER_BLOCK; j++){ // read through every element in the block
             if (b.blk[j].name == name)
             {
                 found = true;
@@ -360,17 +419,28 @@ File open_file(char *name, FileMode mode) { // the 'mode' referred to here is re
         if (found) break;
     }
 
-
-    File f = malloc(sizeof(File)); // this is the returned file
+    // setting up the file  //
+    File f = malloc(sizeof(File)); // must malloc it so we can access it outside of this function
     f->mode = mode;
     strcpy(f->name, name);
     f->inodeNum = ((4*i)+j);
     f->pos = 0; // treat current file position as byte 0
 
-    return f; // temporary return, change later
+    // setting the directory entry to open //
+    DirectoryBlock c;
+    if(!read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+i)){
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
+    c.blk[j].isOpen = true;
+    if(!write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+i)){
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
+
+    return f;
 }
 
-// might need to change this code as directory entries may be setup incorrectly
 File create_file(char *name) {
     fserror = FS_NONE;
     if(!valid_name(name)) { // first, check that the new filename is valid
@@ -382,7 +452,6 @@ File create_file(char *name) {
         return NULL;
     }
     
-    // creating the file [incomplete] //
     bitmap b;
     if(! read_sd_block(b.bytes, INODE_BITMAP_BLOCK)) {
         fserror = FS_IO_ERROR;
@@ -390,8 +459,6 @@ File create_file(char *name) {
     }
 
     // setting up directory entry
-    DirectoryEntry entry;
-    strcpy(entry.name, name);
     uint16_t inodeNum = get_first_free_inode();
     set_bit(b.bytes, inodeNum); // actually marking the inode as taken
     if(! write_sd_block(b.bytes, INODE_BITMAP_BLOCK)) { // updating bitmap in memory
@@ -399,25 +466,39 @@ File create_file(char *name) {
         return NULL;
     }
 
-    // add the directory entry to the first free directory block
-    uint16_t blkNum = inodeNum/3; // inode num and directory number should be equivalent at all times
-    uint16_t blkPos = inodeNum%3;
+    // adding the directory entry to the first free directory block //;
+    uint16_t dBlkNum = inodeNum/DIRECTORIES_PER_BLOCK; // inode num and directory number should be equivalent at all times
+    uint16_t dBlkPos = inodeNum%DIRECTORIES_PER_BLOCK;
 
     DirectoryBlock c;
-    if(!read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum)){
+    if(!read_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+dBlkNum)){
         fserror = FS_IO_ERROR;
         return NULL;
     }
-    memcpy(c.blk[blkPos].name, entry.name, sizeof(entry.name));
-    // may need to add more stuff here
-    if (! write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+blkNum)){
+    memcpy(c.blk[dBlkPos].name, name, sizeof(name));
+    c.blk[dBlkPos].isOpen = false;
+
+    // initializing the Inode Size Value //
+    InodeBlock iBlk;
+    uint16_t iBlkNum = inodeNum/INODES_PER_BLOCK;
+    uint16_t iBlkPos = inodeNum%INODES_PER_BLOCK;
+    if(!read_sd_block(iBlk.inodes, FIRST_INODE_BLOCK+iBlkNum)){
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
+    iBlk.inodes[iBlkPos].size = 0;
+    if(!write_sd_block(iBlk.inodes, FIRST_INODE_BLOCK+iBlkNum)){
         fserror = FS_IO_ERROR;
         return NULL;
     }
 
-    // opening the file
+    // opening the file //
     File ret = open_file(name, READ_WRITE);
-    entry.isOpen = true;
+    
+    if (! write_sd_block(c.blk, FIRST_DIRECTORY_BLOCK+dBlkNum)){ // writing directory entry changes back to memeory
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
 
     return ret;
 }
@@ -428,11 +509,13 @@ void close_file(File file) {
         fserror = FS_FILE_NOT_OPEN;
     }
     else {
-        uint16_t dir = file.inodeNum;
+        uint16_t blkNum = file->inodeNum/DIRECTORIES_PER_BLOCK;
+        uint16_t blkPos = file->inodeNum%DIRECTORIES_PER_BLOCK;
         DirectoryBlock b;
-        read_sd_block(b.blk, dir/3);
-        b.blk[dir%3].isOpen = false;
-        write_sd_block(b.blk, dir/3);
+        read_sd_block(b.blk, blkNum);
+        b.blk[blkPos].isOpen = false;
+        // we DO NOT set the name back to nothing in the directory entry, as we are only CLOSING the file, not DELETING it
+        write_sd_block(b.blk, blkPos);
         memset(file, 0, sizeof(file));
         free(file);
         file = NULL;
@@ -445,7 +528,7 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes) {
     fserror = FS_NONE;
     uint64_t readbytes = 0;
 
-    if (!(file->isOpen)) {
+    if (is_open(file)) {
         fserror = FS_FILE_NOT_OPEN;
         return numbytes;
     }
@@ -468,7 +551,7 @@ uint64_t write_file(File file, void *buf, uint64_t numbytes) {
     fserror = FS_NONE;
     uint64_t readbytes = 0;
 
-    if (!(file->isOpen)) {
+    if (isOpen(file)) {
         fserror = FS_FILE_NOT_OPEN; 
         return readbytes;
     }
@@ -476,10 +559,10 @@ uint64_t write_file(File file, void *buf, uint64_t numbytes) {
         fserror = FS_FILE_READ_ONLY;
         return readbytes;
     }
-    if ((file->size + numbytes) > MAX_FILE_SIZE) { // this will need to be changed, it should write as much as it can, until this happens
-        fserror = FS_EXCEEDS_MAX_FILE_SIZE;
-        return readbytes;
-    }
+    //if ((inode + numbytes) > MAX_FILE_SIZE) { // this will need to be changed, it should write as much as it can, until this happens
+     //   fserror = FS_EXCEEDS_MAX_FILE_SIZE;
+    //   return readbytes;
+    //}
 
     // part of this will actually require accessing the inode value associated with the file
     // and updating its array to include the new block we just wrote
