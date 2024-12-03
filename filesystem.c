@@ -522,11 +522,9 @@ void close_file(File file) {
     }
 }
 
-// TODO: Implement!
-// the return value is how many bytes are written; only necessary if the read is stopped prematurely
 uint64_t read_file(File file, void *buf, uint64_t numbytes) {
     fserror = FS_NONE;
-    uint64_t readbytes = 0;
+    uint64_t redbytes = 0;
 
     if (is_open(file)) {
         fserror = FS_FILE_NOT_OPEN;
@@ -536,13 +534,14 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes) {
     // TODO: actually grab the file
 
     uint64_t fSize = file_length(file);
-    while (readbytes < numbytes) { // probably a better way to do this
-        if (readbytes > fSize) break; // this stops us from reading past the end of a file
+    while (redbytes < numbytes) { // probably a better way to do this
+        if (redbytes > fSize) break; // this stops us from reading past the end of a file
         // TODO: else read a byte at position readbytes into 'buf'
-        readbytes++;
+        redbytes++;
     }
 
-    return readbytes;
+    // the return value is how many bytes are written; only necessary if the read is stopped prematurely
+    return redbytes;
 }
 
 // TODO: Implement!
