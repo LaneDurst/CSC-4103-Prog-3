@@ -182,7 +182,7 @@ static bool mark_inode(uint16_t inode, bool flag) {
 
 // finds the first free bit in a byte of data
 // returns the bit number if there is a free bit
-// otherwise, returns null
+// otherwise, returns -1
 uint8_t first_free_bit(uint8_t byte){
     for (int i = 0; i < 8; i++){
         if (!(byte & (1 <<i))){
@@ -192,27 +192,35 @@ uint8_t first_free_bit(uint8_t byte){
     return -1;
 }
 
-// TODO: Check if the function fails correctly, because we can only return an integer
 // Searches the Inode bitmap for the first free Inode, then sets 
-// the Inode as taken & returns the Inode number. Sets fserror on I/O error.
+// the Inode as taken & returns the Inode number. The inode number
+// returned is relative to the start of the Inode Blocks.
 uint16_t get_first_free_inode(void) {
-
-    uint16_t failure = -1; // set fail state of -1 (equal to UINT16_MAX)
     bitmap f;
-    
+    uint16_t blkNum = -1;
+
+
     if(!read_sd_block(&f.bytes, INODE_BITMAP_BLOCK)) { // attempt to read inode bitmap from disk
-        fserror = FS_IO_ERROR; // can't read from disk, set fserror & return -1
+        fserror = FS_IO_ERROR;
+        return -1;
     }
     else
     {
         int length = sizeof(f.bytes) / sizeof(f.bytes[0]);
         for (int i = 0; i < length; i++)
         {
-            if (first_free_bit(f.bytes[i]) != -1) return ((8*i)+first_free_bit(f.bytes[i]));
+            if (first_free_bit(f.bytes[i]) != -1){
+                blkNum = ((8*i)+first_free_bit(f.bytes[i]));
+                break;
+            }
         }
     }
-
-    return failure; // return the number of the first free inode or -1 upon fail
+    set_bit(&f, blkNum); // marking the inode as allocated
+    if(!write_sd_block(&f.bytes, INODE_BITMAP_BLOCK)) { // writing changes back to memeory
+        fserror = FS_IO_ERROR;
+        return -1;
+    }
+    return blkNum; // return the number of the first free inode or -1 upon fail
 }
 
 // scans directory entries for the corresponding file
@@ -227,6 +235,35 @@ bool isOpen(char *name){
         }
     }
 }
+
+// this finds the first free data block in the bitmap
+// marks it as allocated and returns the block number
+// returns -1 on failure. The block number returned is
+// relative to the first data block
+uint16_t get_free_data_block(void){
+    bitmap f;
+    uint16_t blkNum = -1;
+
+    if(!read_sd_block(&f.bytes, DATA_BITMAP_BLOCK)) { // attempt to read inode bitmap from disk
+        fserror = FS_IO_ERROR; // can't read from disk, set fserror & return 0
+        return -1;
+    }
+    int length = sizeof(f.bytes) / sizeof(f.bytes[0]);
+    for (int i = 0; i < length; i++)
+    {
+        if (first_free_bit(f.bytes[i]) != -1){
+            blkNum = ((8*i)+first_free_bit(f.bytes[i]));
+            break;
+        }
+    }
+    set_bit(&f, blkNum); // marking the block as allocated
+    if(!write_sd_block(&f.bytes, DATA_BITMAP_BLOCK)) { // writing changes back to memeory
+        fserror = FS_IO_ERROR;
+        return -1;
+    }
+    return FIRST_DATA_BLOCK+blkNum;
+}
+
 
 /////////////////////////////
 // Header Helper Functions //
@@ -451,20 +488,9 @@ File create_file(char *name) {
         fserror = FS_FILE_ALREADY_EXISTS;
         return NULL;
     }
-    
-    bitmap b;
-    if(! read_sd_block(b.bytes, INODE_BITMAP_BLOCK)) {
-        fserror = FS_IO_ERROR;
-        return NULL;
-    }
 
     // setting up directory entry
     uint16_t inodeNum = get_first_free_inode();
-    set_bit(b.bytes, inodeNum); // actually marking the inode as taken
-    if(! write_sd_block(b.bytes, INODE_BITMAP_BLOCK)) { // updating bitmap in memory
-        fserror = FS_IO_ERROR;
-        return NULL;
-    }
 
     // adding the directory entry to the first free directory block //;
     uint16_t dBlkNum = inodeNum/DIRECTORIES_PER_BLOCK; // inode num and directory number should be equivalent at all times
@@ -512,28 +538,28 @@ void close_file(File file) {
         uint16_t blkNum = file->inodeNum/DIRECTORIES_PER_BLOCK;
         uint16_t blkPos = file->inodeNum%DIRECTORIES_PER_BLOCK;
         DirectoryBlock b;
-        read_sd_block(b.blk, blkNum);
+        read_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+blkNum);
         b.blk[blkPos].isOpen = false;
         // we DO NOT set the name back to nothing in the directory entry, as we are only CLOSING the file, not DELETING it
-        write_sd_block(b.blk, blkPos);
+        write_sd_block(b.blk, FIRST_DIRECTORY_BLOCK+blkNum);
         memset(file, 0, sizeof(file));
         free(file);
         file = NULL;
     }
 }
 
-uint64_t read_file(File file, void *buf, uint64_t numbytes) {
+uint64_t read_file(File file, void *buf, uint64_t numbytes) { // the return value is how many bytes are actually read; only necessary if the read is stopped prematurely
     fserror = FS_NONE;
     uint64_t redbytes = 0;
     if (!is_open(file)) {
         fserror = FS_FILE_NOT_OPEN;
-        return numbytes;
+        return redbytes;
     }
 
     InodeBlock iBlk;
-    if(!read_sd_block(iBlk.inodes, file->inodeNum / INODES_PER_BLOCK)){
+    if(!read_sd_block(iBlk.inodes, FIRST_INODE_BLOCK + file->inodeNum / INODES_PER_BLOCK)){
         fserror = FS_IO_ERROR;
-        return NULL;
+        return redbytes;
     }
     
     char *data;
@@ -546,15 +572,15 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes) {
 
         if (file->pos > SOFTWARE_DISK_BLOCK_SIZE*NUM_DIRECT_INODE_BLOCKS){ // if its in the indirect block we have to do different operations
             IndirectBlock indirect;
-            if(!read_sd_block(indirect.b, fileNode.b[sizeof(fileNode.b) / sizeof(fileNode.b[0])])){ // this gets the indirect block
+            if(!read_sd_block(indirect.b, FIRST_DATA_BLOCK+fileNode.b[sizeof(fileNode.b) / sizeof(fileNode.b[0])])){ // this gets the indirect block
                 fserror = FS_IO_ERROR;
-                return NULL;
+                return redbytes;
             }
 
             void *blk[SOFTWARE_DISK_BLOCK_SIZE]; // the block we are currently in
-            if(!read_sd_block(blk, indirect.b[(file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE))-NUM_DIRECT_INODE_BLOCKS])){ // subtract NUM_DIRECT_INODE_BLOCKS here because otherwise it would never read the first NUM_DIRECT_INODE_BLOCKS blocks
+            if(!read_sd_block(blk, indirect.b[FIRST_DATA_BLOCK + ((file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE))-NUM_DIRECT_INODE_BLOCKS)])){ // subtract NUM_DIRECT_INODE_BLOCKS here because otherwise it would never read the first NUM_DIRECT_INODE_BLOCKS blocks
                 fserror = FS_IO_ERROR;
-                return NULL;
+                return redbytes;
             }
             data[redbytes] = blk[file->pos%SOFTWARE_DISK_BLOCK_SIZE];
             file->pos++;
@@ -564,11 +590,11 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes) {
         }
         else{ // most commonly executed part, in theory
             void *blk[SOFTWARE_DISK_BLOCK_SIZE]; // the block we are currently in
-            if(!read_sd_block(blk, fileNode.b[file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE)])){
+            if(!read_sd_block(blk, fileNode.b[FIRST_DATA_BLOCK + file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE)])){
                 fserror = FS_IO_ERROR;
-                return NULL;
+                return redbytes;
             }
-            data[redbytes] = blk[file->pos%SOFTWARE_DISK_BLOCK_SIZE];
+            data[redbytes] = blk[FIRST_DATA_BLOCK + file->pos%SOFTWARE_DISK_BLOCK_SIZE];
             file->pos++;
             redbytes++;
             numbytes--;
@@ -580,31 +606,107 @@ uint64_t read_file(File file, void *buf, uint64_t numbytes) {
     return redbytes;
 }
 
-// TODO: Implement!
-// return type is uint64_t for the same reason as above
-uint64_t write_file(File file, void *buf, uint64_t numbytes) {
+uint64_t write_file(File file, void *buf, uint64_t numbytes) {// return type is uint64_t for the same reason as above
     fserror = FS_NONE;
-    uint64_t readbytes = 0;
+    uint64_t writbytes = 0;
 
-    if (isOpen(file)) {
+    if (!isOpen(file)) {
         fserror = FS_FILE_NOT_OPEN; 
-        return readbytes;
+        return writbytes;
     }
     if (file->mode != READ_WRITE) {
         fserror = FS_FILE_READ_ONLY;
-        return readbytes;
+        return writbytes;
     }
-    //if ((inode + numbytes) > MAX_FILE_SIZE) { // this will need to be changed, it should write as much as it can, until this happens
-     //   fserror = FS_EXCEEDS_MAX_FILE_SIZE;
-    //   return readbytes;
-    //}
+    
+    InodeBlock iBlk;
+    if(!read_sd_block(iBlk.inodes, file->inodeNum / INODES_PER_BLOCK)){
+        fserror = FS_IO_ERROR;
+        return writbytes;
+    }
 
-    // part of this will actually require accessing the inode value associated with the file
-    // and updating its array to include the new block we just wrote
+    // actually writing the data //
+    Inode fileNode = iBlk.inodes[file->inodeNum%INODES_PER_BLOCK];
 
-    // instead of a for loop, should probably do a memcpy operation into the file location from buf for as many bytes as possible
-    // write to the file
-    // NOTE: while you are writing, check to make sure the current write would not cause the file to exceed max size
+    while(numbytes > 0){
+        if(file->pos > MAX_FILE_SIZE){
+            fserror = FS_EXCEEDS_MAX_FILE_SIZE;
+            return writbytes;
+        }// this prevents reading past the end of the file
 
-    return readbytes;
+        if (file->pos > SOFTWARE_DISK_BLOCK_SIZE*NUM_DIRECT_INODE_BLOCKS){ // if its in the indirect block we have to do different operations
+            IndirectBlock indirect;
+            if(!read_sd_block(indirect.b, FIRST_DATA_BLOCK+fileNode.b[sizeof(fileNode.b) / sizeof(fileNode.b[0])])){ // this gets the indirect block
+                fserror = FS_IO_ERROR;
+                return writbytes;
+            }
+
+            void *data[SOFTWARE_DISK_BLOCK_SIZE]; // the block we are currently in
+            if(!read_sd_block(data, indirect.b[FIRST_DATA_BLOCK + ((file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE))-NUM_DIRECT_INODE_BLOCKS)])){ // subtract NUM_DIRECT_INODE_BLOCKS here because otherwise it would never read the first NUM_DIRECT_INODE_BLOCKS blocks
+                fserror = FS_IO_ERROR;
+                return writbytes;
+            }
+            uint16_t internalPos = file->pos % SOFTWARE_DISK_BLOCK_SIZE;
+            for (internalPos; internalPos < SOFTWARE_DISK_BLOCK_SIZE && numbytes != 0; internalPos++){
+                if (fileNode.size++ > MAX_FILE_SIZE) { // this should only really happen in the indirect node section, but good practice to check
+                    fserror = FS_EXCEEDS_MAX_FILE_SIZE;
+                    return writbytes;
+                }
+                data[internalPos] = *((char*)data[writbytes]); // converting whatever is in buf to a char and putting it in data
+                file->pos++;
+                fileNode.size++;
+                numbytes--;
+            }
+
+            if (numbytes == 0 && sizeof(data) != SOFTWARE_DISK_BLOCK_SIZE){
+                uint64_t empty = SOFTWARE_DISK_BLOCK_SIZE - sizeof(data); // how many bytes have been left empty
+                void* start = &data[empty];
+                memset(start, '\0', empty);
+            }
+
+            if(!write_sd_block(data, indirect.b[FIRST_DATA_BLOCK + ((file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE))-NUM_DIRECT_INODE_BLOCKS)])){ // subtract NUM_DIRECT_INODE_BLOCKS here because otherwise it would never read the first NUM_DIRECT_INODE_BLOCKS blocks
+                fserror = FS_IO_ERROR;
+                return writbytes;
+            }
+        }
+        else{ // most commonly executed part, in theory
+
+            // get the block we are currently in, or allocate one if needed //
+            if (fileNode.b[file->pos/SOFTWARE_DISK_BLOCK_SIZE] == -1){ // not initialized
+                fileNode.b[file->pos/SOFTWARE_DISK_BLOCK_SIZE] = get_free_data_block();
+            }
+            // reading the data block in
+            void *data[SOFTWARE_DISK_BLOCK_SIZE];
+            if(!read_sd_block(data, FIRST_DATA_BLOCK+fileNode.b[file->pos/SOFTWARE_DISK_BLOCK_SIZE])){
+                fserror = FS_IO_ERROR;
+                return writbytes;
+            }
+            uint16_t internalPos = file->pos % SOFTWARE_DISK_BLOCK_SIZE;
+            for (internalPos; internalPos < SOFTWARE_DISK_BLOCK_SIZE && numbytes != 0; internalPos++){
+                if (fileNode.size++ > MAX_FILE_SIZE) { // this should only really happen in the indirect node section, but good practice to check
+                    fserror = FS_EXCEEDS_MAX_FILE_SIZE;
+                    return writbytes;
+                }
+                data[internalPos] = *((char*)data[writbytes]); // converting whatever is in buf to a char and putting it in data
+                file->pos++;
+                fileNode.size++;
+                numbytes--;
+            }
+
+            if (numbytes == 0 && sizeof(data) != SOFTWARE_DISK_BLOCK_SIZE){
+                uint64_t empty = SOFTWARE_DISK_BLOCK_SIZE - sizeof(data); // how many bytes have been left empty
+                void* start = &data[empty];
+                memset(start, '\0', empty);
+            }
+
+            // updating data block with new info, in memeory
+            if(!write_sd_block(data, FIRST_DATA_BLOCK+fileNode.b[file->pos/SOFTWARE_DISK_BLOCK_SIZE])){
+                fserror = FS_IO_ERROR;
+                return writbytes;
+            }
+
+        }
+    }
+
+    return writbytes;
 }
