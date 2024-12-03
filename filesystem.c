@@ -525,22 +525,58 @@ void close_file(File file) {
 uint64_t read_file(File file, void *buf, uint64_t numbytes) {
     fserror = FS_NONE;
     uint64_t redbytes = 0;
-
-    if (is_open(file)) {
+    if (!is_open(file)) {
         fserror = FS_FILE_NOT_OPEN;
         return numbytes;
     }
 
-    // TODO: actually grab the file
+    InodeBlock iBlk;
+    if(!read_sd_block(iBlk.inodes, file->inodeNum / INODES_PER_BLOCK)){
+        fserror = FS_IO_ERROR;
+        return NULL;
+    }
+    
+    char *data;
+    data = malloc(numbytes); // holds the data until we assign it to buf;
 
-    uint64_t fSize = file_length(file);
-    while (redbytes < numbytes) { // probably a better way to do this
-        if (redbytes > fSize) break; // this stops us from reading past the end of a file
-        // TODO: else read a byte at position readbytes into 'buf'
-        redbytes++;
+    // actually reading the inode data //
+    Inode fileNode = iBlk.inodes[file->inodeNum%INODES_PER_BLOCK];
+    while(numbytes > 0){
+        if(file->pos > fileNode.size) break; // this prevents reading past the end of the file
+
+        if (file->pos > SOFTWARE_DISK_BLOCK_SIZE*NUM_DIRECT_INODE_BLOCKS){ // if its in the indirect block we have to do different operations
+            IndirectBlock indirect;
+            if(!read_sd_block(indirect.b, fileNode.b[sizeof(fileNode.b) / sizeof(fileNode.b[0])])){ // this gets the indirect block
+                fserror = FS_IO_ERROR;
+                return NULL;
+            }
+
+            void *blk[SOFTWARE_DISK_BLOCK_SIZE]; // the block we are currently in
+            if(!read_sd_block(blk, indirect.b[(file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE))-NUM_DIRECT_INODE_BLOCKS])){ // subtract NUM_DIRECT_INODE_BLOCKS here because otherwise it would never read the first NUM_DIRECT_INODE_BLOCKS blocks
+                fserror = FS_IO_ERROR;
+                return NULL;
+            }
+            data[redbytes] = blk[file->pos%SOFTWARE_DISK_BLOCK_SIZE];
+            file->pos++;
+            redbytes++;
+            numbytes--;
+
+        }
+        else{ // most commonly executed part, in theory
+            void *blk[SOFTWARE_DISK_BLOCK_SIZE]; // the block we are currently in
+            if(!read_sd_block(blk, fileNode.b[file->pos/sizeof(SOFTWARE_DISK_BLOCK_SIZE)])){
+                fserror = FS_IO_ERROR;
+                return NULL;
+            }
+            data[redbytes] = blk[file->pos%SOFTWARE_DISK_BLOCK_SIZE];
+            file->pos++;
+            redbytes++;
+            numbytes--;
+        }
     }
 
     // the return value is how many bytes are written; only necessary if the read is stopped prematurely
+    buf = &data; // assigning this to point at our array containing the data
     return redbytes;
 }
 
