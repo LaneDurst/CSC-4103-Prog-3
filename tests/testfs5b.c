@@ -3,7 +3,7 @@
 // testfs5a.  Do not run formatfs again after running testfs5a.
 //
 
-#include "filesystem.h"
+#include "../filesystem.h"
 
 char poetry[]="Do not go gentle into that good night,\n"
   "Old age should burn and rave at close of day;\n"

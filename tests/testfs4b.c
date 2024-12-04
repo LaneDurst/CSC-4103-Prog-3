@@ -3,8 +3,8 @@
 // do NOT execute formatfs again before conducting this test!
 //
 
-#include "filesystem.h"
-#include "softwaredisk.h"
+#include "../filesystem.h"
+#include "../softwaredisk.h"
   
 int main(int argc, char *argv[]) {
   

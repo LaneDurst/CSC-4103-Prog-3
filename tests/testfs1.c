@@ -2,7 +2,7 @@
 // This is a standalone test.  RUN formatfs before conducting this test!
 //
 
-#include "filesystem.h"
+#include "../filesystem.h"
 
 int main(int argc, char *argv[]) {
   

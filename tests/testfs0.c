@@ -2,7 +2,7 @@
 // This is a standalone test.  RUN formatfs before conducting this test!
 //
 
-#include "filesystem.h"
+#include "../filesystem.h"
 
 int main(int argc, char *argv[]) {
 
@@ -12,6 +12,7 @@ int main(int argc, char *argv[]) {
 
   // should succeed
   f = create_file("simple");
+  fs_print_error();
   if (f) {
     // should succeed
     ret = write_file(f, "hello", strlen("hello"));
