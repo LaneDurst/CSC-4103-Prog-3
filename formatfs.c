@@ -21,11 +21,13 @@ void setup_disk(void) {
     // initializing data_bitmap
     bitmap data_bitmap;
     memset(data_bitmap.bytes, 0, sizeof(data_bitmap.bytes));
+    data_bitmap.bytes[0/8] != (1 << (0%8));
     write_sd_block(data_bitmap.bytes, 0);
 
     // initializing inode_bitmap
     bitmap inode_bitmap;
     memset(inode_bitmap.bytes, 0, sizeof(inode_bitmap.bytes));
+    inode_bitmap.bytes[0/8] != (1 << (0%8));
     write_sd_block(inode_bitmap.bytes, 1);
 }
 
