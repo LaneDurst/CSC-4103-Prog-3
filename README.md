@@ -1,23 +1,36 @@
 # Design Document
-Lane Durst & Connor Morris
+This is the Design Document for Programming Assignment #3 of CSC 4103, done by Lane Durst & Connor Morris in the Fall 2024 semester.
 
-## Block Allocation
-- block 0 is allocated for the Data Bitmap
-- block 1 is allocated for the Inode Bitmap
-- blocks 2-258 are allocated for Inode Blocks
-- blocks 259-264 are allocated for directory entries
-- blocks 265-8192 are allocated for data storage
+## Diagram
+```
++------------------------------------------------------------------------+
+| DATA BITMAP | INODE BITMAP | ======== | XXXX | ~~~~~ DATA BLOCKS ~~~~~ |
++------------------------------------------------------------------------+
+```
+Our filesystem formats the software disk into into 8,192 blocks of size 1024 bytes each. The blocks taken up by our filesystem are mapped as follows:
+- The first two blocks are taken up by the Data Bitmap & Inode Bitmap, respectively. The explanation for the Bitmap Structure is located in another section of this document.
+- The next 256 blocks are taken up by Inode Blocks, which store 32 Inodes per block.
+- After the Inode Blocks, there are 150 Directory Entry Blocks, each filled with 2 Directory Entries. The directory entries store the name of a file and a Boolean value that keeps track of whether the file for that directory entry is currently open.
+- All of the remaining blocks in the filesystem are for storing data; the specific number is 7,782 Data Blocks. We allow for a maximum of 300 files in our filesystem implementation, meaning that this number of free blocks is perfect for our usage.
 
-## Bitmap structure
-There are two bitmaps contained in this filesystem.c implementation, the data bitmap and the inode bitmap. Their purpose is to log which data blocks and which inodes are free to be altered within the software disk. The bitmap structure is composed of an array of uint8_t elements, and is equal in size to an entire software disk block. In this case, that means 1024 uint8_t elements. However, these elements are not what operations on the bitmap affect directly. Instead, each inode or data block represented by a bitmap is represented by each individual bit of these elemenets. This means, for instance, that inode number 12 is not represented by the 12th element in the array, but is instead the 4th bit of the 2nd element of the array.
+## Block Allocation (Simplified)
+- Block 0 is allocated for the Data Bitmap.
+- Block 1 is allocated for the Inode Bitmap.
+- Blocks 2 - 258 are allocated for Inode Blocks.
+- Blocks 259 - 409 are allocated for Directory Entry Blocks.
+- Blocks 410 - 8192 are allocated for Data Storage Blocks.
+
+## Bitmap Structure
+There are two Bitmaps contained in this filesystem.c implementation, the Data Bitmap and the Inode Nitmap. Their purpose is to log which Data Blocks and which Inodes are free to be altered within the software disk. The bitmap structure is composed of an array of uint8_t elements, and is equal in size to an entire software disk block. In this case, that means 1024 uint8_t elements. However, these elements are not what operations on the bitmap affect directly. Instead, each inode or data block represented by a bitmap is represented by each individual bit of these elemenets. This means, for instance, that inode number 12 is not represented by the 12th element in the array, but is instead the 4th bit of the 2nd element of the array.
 
 ## Directory Entry Strucutre
-The directory entry structure is composed of one part, a refrence to the file. In this case that is the name associated with the file. We do not store the inode number in the directory entry as the directory entry number and the inode number are always equivalent in this implementation.
+The Directory Entry Structure is composed of one part, a reference to the file. In this case, that is the name associated with the file. We do not store the Inode number in the directory entry as the directory entry number and the Inode number are always equivalent in our implementation.
 
 ### Note on Directory Blocks
 [This needs to be updated]
-Because the structure of a directory entry causes it to not evenly fit into a software disk block, when a directory block is initialized only 3 entries are placed into the block. The remaining space is then filled with an array of uint8_t elements, appropriately named 'empty'. No operations are performed using these bytes, they exist solely to ensure structure alignment
+
+In our filesystem implementation, the structure of a directory entry doesn't fit evenly within one 1024 byte block. Therefore, when a directory block is initialized, only 2 entries are stored into the block. The remaining space within the directory blocks is padded with an array of uint8_t elements, appropriately named 'empty', since no operations are performed on these bytes. They exist solely to ensure the directory entry structure aligns properly in a directory block.
 
 ## Implementation limitations
-- the system is currently only able to support 300 files at maximum (this is because currently only 75 blocks are allocated for directory entries, and each block contains only 4 directory entries)
-- the system does not allow for filenames greater than 256 characters, and each MUST NOT start with a null character and MUST end in a null character. [This also effectively means the name must be at least 2 characters long, including the null character that terminates the string]
+- The system is currently only able to support 300 files at maximum. This is due to only 150 blocks being allocated for directory entries, and only 2 directory entries fit in each directory block.
+- The system does not allow for filenames greater than 256 characters, and each MUST NOT start with a null character and MUST end in a null character. This also effectively means a filename must be at least 2 characters long, including the null character that terminates the string.
